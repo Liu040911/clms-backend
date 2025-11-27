@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: 'mysql:latest'
+    container_name: mysql
+    restart: always
+    environment:
+      - 'MYSQL_DATABASE=clms'
+      - 'MYSQL_PASSWORD=liujiawei2004'
+      - 'MYSQL_ROOT_PASSWORD=liujiawei2004'
+      - 'MYSQL_USER=liu'
+    ports:
+      - '3306:3306'
+    volumes:
+      - ./mysql/datadir:/var/lib/mysql
+      - ./mysql/config/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - app-network
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - ./redis/data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis/logs:/logs
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - app-network
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    environment:
+      - RABBITMQ_DEFAULT_USER=liu
+      - RABBITMQ_DEFAULT_PASS=liujiawei2004
+    volumes:
+      # - ./rabbitmq/data:/var/lib/rabbitmq
+      - ./rabbitmq/config:/etc/rabbitmq
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
