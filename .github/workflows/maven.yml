@@ -8,6 +8,10 @@
 
 name: Java CI with Maven
 
+permissions:
+  contents: write
+  packages: write
+  
 on:
   push:
     branches: [ "master" ]
