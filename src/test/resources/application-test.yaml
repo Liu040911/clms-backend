@@ -38,9 +38,10 @@ spring:
   rabbitmq:
     host: localhost
     port: 5672
-    username: guest
-    password: guest
+    username: liu
+    password: liujiawei2004
     virtual-host: /
+    connection-timeout: 30000
     listener:
       simple:
         acknowledge-mode: manual
