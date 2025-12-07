@@ -2,7 +2,7 @@
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/clms_test?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&remarks=true&useInformationSchema=true&tinyInt1isBit=true&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/clms_test?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&remarks=true&useInformationSchema=true&tinyInt1isBit=true&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: liujiawei2004
     # HikariCP连接池配置
@@ -29,7 +29,7 @@ spring:
       # Redis数据库索引（默认为0）
       database: 1
       # Redis服务器地址
-      host: 127.0.0.1
+      host: localhost
       # Redis服务器连接端口
       port: 6379
       # 连接超时时间
@@ -47,13 +47,15 @@ spring:
 
   # RabbitMQ 配置
   rabbitmq:
-    host: 127.0.0.1
+    host: localhost
     port: 5672
     username: liu
     password: liujiawei2004
     virtual-host: /
-    #  支持发布返回
+    # 连接超时配置
+    connection-timeout: 30000
+    # 支持发布返回
     publisher-returns: true
     publisher-confirm-type: correlated
     template:
-      mandatory: true 
+      mandatory: true
