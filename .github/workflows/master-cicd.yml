@@ -111,20 +111,78 @@ jobs:
     - name: 等待 RabbitMQ 就绪
       run: |
         echo "等待 RabbitMQ 启动..."
-        for i in {1..30}; do
-          if docker exec clms-rabbitmq rabbitmq-diagnostics -q ping 2>/dev/null; then
-            echo "RabbitMQ 已就绪!"
-            break
+        max_attempts=60
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          attempt=$((attempt + 1))
+          
+          # 首先检查容器是否在运行
+          container_status=$(docker inspect --format='{{.State.Status}}' clms-rabbitmq 2>/dev/null || echo "not_found")
+          if [ "$container_status" != "running" ]; then
+            echo "第 $attempt 次尝试: 容器状态: $container_status"
+            sleep 3
+            continue
           fi
-          echo "第 $i 次尝试: RabbitMQ 尚未就绪..."
+          
+          # 检查 RabbitMQ 节点是否响应
+          if ! docker exec clms-rabbitmq rabbitmq-diagnostics -q ping 2>/dev/null; then
+            echo "第 $attempt 次尝试: RabbitMQ 节点尚未就绪..."
+            sleep 3
+            continue
+          fi
+          
+          # 检查认证系统是否就绪（尝试使用凭证连接）
+          if docker exec clms-rabbitmq rabbitmq-diagnostics -q check_running 2>/dev/null; then
+            # 额外等待确保认证系统完全就绪
+            echo "RabbitMQ 节点已启动，等待认证系统就绪..."
+            sleep 5
+            
+            # 验证用户是否可以认证
+            if docker exec clms-rabbitmq rabbitmqctl authenticate_user liu liujiawei2004 2>/dev/null; then
+              echo "RabbitMQ 已就绪，认证系统正常!"
+              break
+            else
+              echo "第 $attempt 次尝试: 认证系统尚未就绪..."
+              sleep 3
+              continue
+            fi
+          fi
+          
+          echo "第 $attempt 次尝试: RabbitMQ 尚未完全就绪..."
           sleep 3
         done
+        
+        if [ $attempt -eq $max_attempts ]; then
+          echo "RabbitMQ 启动超时"
+          docker logs clms-rabbitmq
+          exit 1
+        fi
     
     - name: 初始化测试数据库
       run: |
         echo "开始初始化数据库..."
+        
+        # 验证数据库连接
+        echo "验证数据库连接..."
+        if docker exec clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} -e "SELECT 1" 2>/dev/null; then
+          echo "数据库连接成功"
+        else
+          echo "数据库连接失败"
+          docker logs clms-mysql
+          exit 1
+        fi
+        
+        # 确保数据库存在
+        docker exec clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS ${{ env.MYSQL_DATABASE }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+        
         # 执行数据库初始化脚本
-        docker exec -i clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} ${{ env.MYSQL_DATABASE }} < src/main/resources/sql/database_init.sql || true
+        if [ -f src/main/resources/sql/database_init.sql ]; then
+          docker exec -i clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} ${{ env.MYSQL_DATABASE }} < src/main/resources/sql/database_init.sql || true
+          echo "数据库初始化脚本执行完成"
+        else
+          echo "未找到数据库初始化脚本，跳过"
+        fi
+        
         echo "数据库初始化完成"
     
     - name: 使用 test 配置运行测试（内存优化）
