@@ -1,0 +1,64 @@
+# Docker Compose 配置 - 测试环境
+# 用于 GitHub Actions CI/CD 流水线中的自动化测试
+# 包含 MySQL、Redis、RabbitMQ 等核心依赖服务
+
+services:
+  mysql:
+    image: 'mysql:8.0'
+    container_name: clms-mysql
+    restart: always
+    environment:
+      - 'MYSQL_DATABASE=${MYSQL_DATABASE:-clms_test}'
+      - 'MYSQL_USER=${MYSQL_USER:-clms_test}'
+      - 'MYSQL_PASSWORD=${MYSQL_PASSWORD:-liujiawei2004}'
+      - 'MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-liujiawei2004}'
+    ports:
+      - '3306:3306'
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command: 
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+
+  redis:
+    image: redis:latest
+    container_name: clms-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: clms-rabbitmq
+    restart: always
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: liu
+      RABBITMQ_DEFAULT_PASS: liujiawei2004
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmqctl list_users | grep -q liu"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+networks:
+  test-network:
+    driver: bridge

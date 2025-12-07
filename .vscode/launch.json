@@ -15,7 +15,8 @@
             "name": "ClmsBackendApplication",
             "request": "launch",
             "mainClass": "com.clms.ClmsBackendApplication",
-            "projectName": "clms-backend"
+            "projectName": "clms-backend",
+            "vmArgs": "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=40735 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=clms-backend"
         },
         {
             "type": "java",
@@ -25,7 +26,17 @@
             "mainClass": "com.clms.ClmsBackendApplication",
             "projectName": "clms-backend",
             "args": "",
-            "vmArgs": "-Dspring.profiles.active=dev"
+            "vmArgs": "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=40735 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=clms-backend -Dspring.profiles.active=dev"
+        },
+        {
+            "type": "java",
+            "name": "Test-ClmsBackendApplication",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.clms.ClmsBackendApplication",
+            "projectName": "clms-backend",
+            "args": "",
+            "vmArgs": "-Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=40735 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=clms-backend -Dspring.profiles.active=test"
         },
     ]
 }

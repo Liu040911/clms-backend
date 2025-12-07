@@ -1,0 +1,243 @@
+# 此工作流使用 Maven 构建 Java 项目，并缓存/恢复依赖项以提高工作流执行时间
+# 更多信息请参阅: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
+
+# 此工作流使用的 actions 未经 GitHub 认证
+# 它们由第三方提供，受单独的服务条款、隐私政策和支持文档约束
+
+name: Master Branch CI/CD Pipeline
+
+permissions:
+  contents: write
+  packages: write
+
+# 全局环境变量
+env:
+  MYSQL_DATABASE: 'clms_test'
+  MYSQL_USER: 'clms_test'
+  MYSQL_PASSWORD: 'liujiawei2004'
+  MYSQL_ROOT_PASSWORD: 'liujiawei2004'
+  SPRING_PROFILES_ACTIVE: 'test'
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test:
+    name: 运行测试
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 配置 JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: 设置 Maven 缓存
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    
+    - name: 安装 MySQL 客户端
+      run: sudo apt-get update && sudo apt-get install -y mysql-client
+    
+    - name: 使用 Docker Compose 启动测试服务
+      run: |
+        docker compose -f deploy/docker-compose-test.yml up -d
+        echo "等待服务健康检查..."
+    
+    - name: 等待 MySQL 就绪
+      run: |
+        echo "等待 MySQL 启动..."
+        max_attempts=60
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          attempt=$((attempt + 1))
+          
+          # 检查容器是否在运行
+          container_status=$(docker inspect --format='{{.State.Status}}' clms-mysql 2>/dev/null || echo "not_found")
+          if [ "$container_status" != "running" ]; then
+            echo "第 $attempt 次尝试: 容器状态: $container_status"
+            sleep 3
+            continue
+          fi
+          
+          # 检查健康状态
+          health_status=$(docker inspect --format='{{.State.Health.Status}}' clms-mysql 2>/dev/null || echo "unknown")
+          echo "第 $attempt 次尝试: 健康状态: $health_status"
+          
+          if [ "$health_status" = "healthy" ]; then
+            echo "MySQL 已就绪!"
+            break
+          fi
+          
+          # 尝试使用 mysqladmin 检查
+          if docker exec clms-mysql mysqladmin ping -h localhost -u root -p${{ env.MYSQL_ROOT_PASSWORD }} --silent 2>/dev/null; then
+            echo "MySQL 已就绪 (通过 mysqladmin 确认)!"
+            break
+          fi
+          
+          sleep 3
+        done
+        
+        if [ $attempt -eq $max_attempts ]; then
+          echo "MySQL 启动超时"
+          docker logs clms-mysql
+          exit 1
+        fi
+    
+    - name: 等待 Redis 就绪
+      run: |
+        echo "等待 Redis 启动..."
+        for i in {1..30}; do
+          if docker exec clms-redis redis-cli ping 2>/dev/null | grep -q PONG; then
+            echo "Redis 已就绪!"
+            break
+          fi
+          echo "第 $i 次尝试: Redis 尚未就绪..."
+          sleep 2
+        done
+    
+    - name: 等待 RabbitMQ 就绪
+      run: |
+        echo "等待 RabbitMQ 启动..."
+        max_attempts=90
+        attempt=0
+        while [ $attempt -lt $max_attempts ]; do
+          attempt=$((attempt + 1))
+          
+          # 检查容器是否在运行
+          container_status=$(docker inspect --format='{{.State.Status}}' clms-rabbitmq 2>/dev/null || echo "not_found")
+          if [ "$container_status" != "running" ]; then
+            echo "第 $attempt 次尝试: 容器状态: $container_status"
+            sleep 2
+            continue
+          fi
+          
+          # 检查 RabbitMQ 节点是否响应
+          if ! docker exec clms-rabbitmq rabbitmq-diagnostics -q ping 2>/dev/null; then
+            echo "第 $attempt 次尝试: RabbitMQ 节点尚未就绪..."
+            sleep 2
+            continue
+          fi
+          
+          # 检查 RabbitMQ 应用是否完全启动
+          if docker exec clms-rabbitmq rabbitmq-diagnostics -q check_running 2>/dev/null; then
+            echo "RabbitMQ 已就绪!"
+            sleep 3
+            break
+          else
+            echo "第 $attempt 次尝试: RabbitMQ 应用尚未完全启动..."
+            sleep 2
+            continue
+          fi
+        done
+        
+        if [ $attempt -eq $max_attempts ]; then
+          echo "RabbitMQ 启动超时"
+          echo "=== 容器日志 ==="
+          docker logs clms-rabbitmq
+          exit 1
+        fi
+    
+    - name: 初始化测试数据库
+      run: |
+        echo "开始初始化数据库..."
+        
+        # 验证数据库连接
+        echo "验证数据库连接..."
+        if docker exec clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} -e "SELECT 1" 2>/dev/null; then
+          echo "数据库连接成功"
+        else
+          echo "数据库连接失败"
+          docker logs clms-mysql
+          exit 1
+        fi
+        
+        # 确保数据库存在
+        docker exec clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} -e "CREATE DATABASE IF NOT EXISTS ${{ env.MYSQL_DATABASE }} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null || true
+        
+        # 执行数据库初始化脚本
+        if [ -f src/main/resources/sql/database_init.sql ]; then
+          docker exec -i clms-mysql mysql -u root -p${{ env.MYSQL_ROOT_PASSWORD }} ${{ env.MYSQL_DATABASE }} < src/main/resources/sql/database_init.sql || true
+          echo "数据库初始化脚本执行完成"
+        else
+          echo "未找到数据库初始化脚本，跳过"
+        fi
+        
+        echo "数据库初始化完成"
+    
+    - name: 验证所有服务连接
+      run: |
+        echo "=== 验证所有服务连接 ==="
+        
+        # 验证 MySQL
+        echo "验证 MySQL 连接..."
+        docker exec clms-mysql mysql -u root -pliujiawei2004 -e "SELECT 'MySQL OK' AS status;" clms_test
+        
+        # 验证 Redis
+        echo "验证 Redis 连接..."
+        docker exec clms-redis redis-cli ping
+        
+        # 验证 RabbitMQ 服务
+        echo "验证 RabbitMQ 服务..."
+        docker exec clms-rabbitmq rabbitmq-diagnostics -q check_running
+        
+        # 等待额外时间确保服务完全稳定
+        echo "等待服务稳定..."
+        sleep 5
+        
+        echo "=== 所有服务验证通过 ==="
+    
+    - name: 使用 test 配置运行测试（内存优化）
+      run: |
+        export MAVEN_OPTS="-Xmx2g -XX:+UseG1GC"
+        mvn -B test -Ptest -Dspring.profiles.active=test -Dfork.count=1 -DreuseForks=true --file pom.xml
+      env:
+        SPRING_PROFILES_ACTIVE: test
+    
+    - name: 停止测试服务
+      if: always()
+      run: |
+        docker compose -f deploy/docker-compose-test.yml down -v
+
+  build:
+    name: 构建应用
+    runs-on: ubuntu-latest
+    needs: test  # 测试成功后才能构建
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 配置 JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: 设置 Maven 缓存
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    
+    - name: Maven 构建（跳过测试，已通过）
+      run: mvn -B package -DskipTests --file pom.xml
+
+    # 可选: 将完整的依赖关系图上传到 GitHub，以提高此仓库可接收的 Dependabot 警报质量
+    - name: 更新依赖关系图
+      uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6

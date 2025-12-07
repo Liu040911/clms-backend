@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.clms.mapper.UserRoleTableMapper">
+
+    <!-- 根据用户id查询出该用户已有角色 -->
+    <select id="getRolesByUserId" resultType="com.clms.entity.po.RoleTable">
+        SELECT
+            r.id,
+            r.role_name,
+            r.role_description,
+            r.role_status,
+            r.default_role,
+            r.create_time,
+            r.update_time
+        FROM role_table r
+        INNER JOIN user_role_table urt ON r.id = urt.role_id
+        WHERE urt.user_id = #{userId}
+    </select>
+
+</mapper>

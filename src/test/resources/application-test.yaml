@@ -1,0 +1,80 @@
+# Test环境配置
+
+# Server配置
+server:
+  port: 8081
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 使用测试数据库
+    url: jdbc:mysql://localhost:3306/clms_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: liujiawei2004
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+      pool-name: ClmsTestHikariCP
+
+  # Redis 配置（测试环境使用本地Redis）
+  data:
+    redis:
+      database: 1
+      host: localhost
+      port: 6379
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 10
+          max-wait: -1ms
+          max-idle: 5
+          min-idle: 2
+
+  # RabbitMQ 配置（测试环境使用本地RabbitMQ）
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: liu
+    password: liujiawei2004
+    virtual-host: /
+    connection-timeout: 30000
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 1
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Sa-Token 配置
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: uuid
+  is-log: false
+  alone-redis:
+    database: 2
+    host: localhost
+    port: 6379
+    timeout: 10s
+
+# 日志配置
+logging:
+  level:
+    com.clms: DEBUG
+    org.springframework: INFO
