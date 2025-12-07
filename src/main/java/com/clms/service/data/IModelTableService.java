@@ -6,7 +6,7 @@ import com.clms.entity.po.ModelTable;
 /**
  * 模型表 Service 接口
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 public interface IModelTableService extends IService<ModelTable> {

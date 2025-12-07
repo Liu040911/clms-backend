@@ -14,7 +14,7 @@ import cn.hutool.json.JSONArray;
  * 使用方式：在实体类属性上使用 @TableField 注解指定此处理器
  * 例：@TableField(typeHandler = JSONArrayTypeHandler.class)
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 public class JSONArrayTypeHandler extends BaseTypeHandler<JSONArray> {

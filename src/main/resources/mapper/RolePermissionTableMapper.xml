@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.clms.mapper.RolePermissionTableMapper">
+
+    <!-- 根据角色ids获取权限实体 -->
+    <select id="getPermissionsByRoleIds" resultType="com.clms.entity.po.PermissionTable">
+        SELECT DISTINCT
+            p.id,
+            p.permission_string,
+            p.permission_name,
+            p.create_time,
+            p.update_time
+        FROM permission_table p
+        INNER JOIN role_permission_table rpt ON p.id = rpt.permission_id
+        WHERE rpt.role_id IN
+        <foreach collection="roleIds" item="roleId" open="(" separator="," close=")">
+            #{roleId}
+        </foreach>
+    </select>
+
+</mapper>

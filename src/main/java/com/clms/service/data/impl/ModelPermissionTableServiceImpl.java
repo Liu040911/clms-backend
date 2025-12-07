@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 /**
  * 模型权限表 Service 实现类
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 @Service

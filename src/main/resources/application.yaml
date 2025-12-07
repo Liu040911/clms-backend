@@ -12,7 +12,7 @@ server:
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://mysql:3306/clms?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false
+    url: jdbc:mysql://mysql:3306/clms?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&remarks=true&useInformationSchema=true&tinyInt1isBit=true&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: liujiawei2004
     # HikariCP连接池配置
@@ -27,10 +27,20 @@ spring:
       idle-timeout: 600000
       # 连接最大生命周期（毫秒，30分钟）
       max-lifetime: 1800000
-      # 连接测试查询
-      connection-test-query: SELECT 1
+      # 保活时间（毫秒，5分钟）- 替代connection-test-query,性能更好
+      keepalive-time: 300000
+      # 初始化失败超时时间（毫秒，1秒）- 快速失败
+      initialization-fail-timeout: 1000
       # 连接池名称
       pool-name: ClmsHikariCP
+      # 自动提交
+      auto-commit: true
+      # 数据源属性 - 预热连接池,应用启动时就建立最小连接数
+      data-source-properties:
+        # 启用网络超时检测
+        socketTimeout: 30000
+        # TCP连接超时
+        connectTimeout: 10000
 
   # Redis 配置
   data:
@@ -72,12 +82,23 @@ spring:
   application:
     name: clms-backend
 
+# 日志配置
+logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
+  level:
+    root: INFO
+    com.clms: DEBUG
+
 ############## Sa-Token 配置 (文档: https://sa-token.cc) ##############
 sa-token:
   # token 名称(同时也是 cookie 名称)
-  token-name: satoken
-  # token 有效期(单位:秒) 默认30天,-1 代表永久有效
-  timeout: -1
+  token-name: Authorization
+  # token 前缀（与前端 Bearer 对应）
+  token-prefix: Bearer
+  # token 有效期(单位:秒) 默认30天,-1 代表永久有效 2592000 = 24*60*60
+  timeout: 86400
   # token 最低活跃频率(单位:秒),如果 token 超过此时间没有访问系统就会被冻结,默认-1 代表不限制,永不冻结
   active-timeout: -1
   # 是否允许同一账号多地同时登录 (为 true 时允许一起登录, 为 false 时新登录挤掉旧登录)
@@ -88,10 +109,13 @@ sa-token:
   token-style: uuid
   # 是否输出操作日志
   is-log: true
+  # 是否从 Cookie 读取 token
   isReadCookie: false
 
 # Mybatis-plus 配置
 mybatis-plus:
+  # 指定 mapper.xml 文件的位置
+  mapper-locations: classpath:mapper/*.xml
   global-config:
     db-config:
       logic-delete-field: deleted # 全局逻辑删除字段名
@@ -125,4 +149,23 @@ swagger3:
   title: 校园讲座管理系统API文档
   description: 校园讲座管理系统API文档
   version: 1.0
+
+# 腾讯云SMS服务配置
+tencent:
+  cloud:
+    sms:
+      # 腾讯云 API 密钥配置（模拟数据）
+      secret-id: AKIDxxxxxxxxxxxxxxxxxx
+      secret-key: xxxxxxxxxxxxxxxxxxxx
+      # 应用 ID (SdkAppId)
+      app-id: "1400000000"
+      # 短信签名（已审核）
+      sign-name: "校园讲座"
+      # 模板 ID（已审核的验证码模板）
+      template-id: "123456"
+      # 区域
+      region: "ap-beijing"
+      # 国家/地区码
+      country-code: "+86"
+
 

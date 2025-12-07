@@ -6,7 +6,7 @@ import com.clms.entity.po.PermissionTable;
 /**
  * 权限表 Service 接口
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 public interface IPermissionTableService extends IService<PermissionTable> {

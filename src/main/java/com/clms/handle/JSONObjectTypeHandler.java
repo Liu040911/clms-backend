@@ -14,7 +14,7 @@ import cn.hutool.json.JSONObject;
  * 使用方式：在实体类属性上使用 @TableField 注解指定此处理器
  * 例：@TableField(typeHandler = JSONObjectTypeHandler.class)
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 public class JSONObjectTypeHandler extends BaseTypeHandler<JSONObject> {

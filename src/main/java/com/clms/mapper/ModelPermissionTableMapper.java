@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 模型权限表 Mapper 接口
  * 
- * @author clms-backend
+ * @author Liu
  * @since 1.0.0
  */
 @Mapper
