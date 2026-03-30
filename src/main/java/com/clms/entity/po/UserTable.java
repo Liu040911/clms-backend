@@ -35,12 +35,6 @@ public class UserTable extends BasePO {
     @Schema(description = "用户头像URL")
     private String avatarUrl;
 
-    @Schema(description = "班级id")
-    private Long classId;
-
-    @Schema(description = "学院id")
-    private Long collegeId;
-
     @Schema(description = "用户角色")
     @TableField(typeHandler = JSONArrayTypeHandler.class, fill = FieldFill.INSERT, value = "user_roles")
     private JSONArray userRoles;

@@ -16,7 +16,6 @@ import com.clms.entity.bo.AdminLoginBO;
 import com.clms.entity.bo.PermissionBO;
 import com.clms.entity.bo.RefreshTokenBO;
 import com.clms.entity.bo.RoleBO;
-import com.clms.entity.bo.UserInfoBO;
 import com.clms.entity.bo.UserLoginBO;
 import com.clms.entity.bo.VerificationCodeBO;
 import com.clms.entity.dto.AccountRegisterDTO;
@@ -28,13 +27,12 @@ import com.clms.exception.BusinessException;
 import com.clms.service.IUserAuthService;
 import com.clms.service.IUserRoleService;
 import com.clms.service.data.IRolePermissionTableService;
-import com.clms.service.data.IRoleTableService;
+import com.clms.service.data.IUserRoleTableService;
 import com.clms.service.data.IUserTableService;
 import com.clms.utils.CommonUtil;
 import com.clms.utils.RedisConstants;
 
 import cn.dev33.satoken.exception.DisableServiceException;
-import cn.dev33.satoken.exception.NotRoleException;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.temp.SaTempUtil;
 import cn.hutool.core.util.IdUtil;
@@ -56,22 +54,13 @@ public class UserAuthServiceImpl implements IUserAuthService {
     private IRolePermissionTableService rolePermissionTableService;
 
     @Resource
+    private IUserRoleTableService userRoleTableService;
+
+    @Resource
     private StringRedisTemplate stringRedisTemplate;
 
     @Resource
     private RabbitTemplate rabbitTemplate;
-
-    @Override
-    public List<RoleBO> getUserRoleListByUserId(String userId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getUserRoleListByUserId'");
-    }
-
-    @Override
-    public List<PermissionBO> getPermissionListByUserId(String userId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPermissionListByUserId'");
-    }
 
     @Override
     public AdminLoginBO adminLogin(UserCredentialDTO userCredentialDTO) {
@@ -108,19 +97,21 @@ public class UserAuthServiceImpl implements IUserAuthService {
             throw new BusinessException(403, "用户被禁用");
         }
      
-        // 3. Sa-Token 登录
-        try {
-            StpUtil.checkRole("admin");
-        } catch (NotRoleException e) {
-            throw new BusinessException(403, "用户无管理员权限");
-        }
+        // 3. 先登录
         StpUtil.login(userTable.getId());
         
-        // 4. 获取角色和权限
+        // 4. 检查是否有管理员权限
         List<String> roles = userTable.getUserRoles().toList(String.class);
+        if (!roles.contains("admin")) {
+            // 没有管理员权限，登出并抛出异常
+            StpUtil.logout();
+            throw new BusinessException(403, "用户无管理员权限");
+        }
+        
+        // 5. 获取权限
         List<String> permissions = userTable.getUserPermissions().toList(String.class);
         
-        // 5. 构建返回数据
+        // 6. 构建返回数据
         AdminLoginBO result = new AdminLoginBO();
         AdminLoginBO.DataContent data = new AdminLoginBO.DataContent();
         data.setAvatar(userTable.getAvatarUrl());

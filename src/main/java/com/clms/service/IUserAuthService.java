@@ -47,22 +47,6 @@ public interface IUserAuthService {
     RefreshTokenBO refreshToken(String refreshToken);
 
     /**
-     * 获取用户角色列表
-     * 
-     * @param userId 用户ID
-     * @return 角色列表
-     */
-    List<RoleBO> getUserRoleListByUserId(String userId);
-
-    /**
-     * 获取用户的权限列表
-     * 
-     * @param userId 用户ID
-     * @return 权限列表
-    */
-    List<PermissionBO> getPermissionListByUserId(String userId);
-
-    /**
      * 获取手机号验证码
      */
     void getPhoneCode(String phone);

@@ -1,11 +1,11 @@
--- Active: 1764214974199@@192.168.10.134@3306@clms
+-- Active: 1764214974199@@192.168.10.134@3306@clms_test
 SET NAMES utf8mb4;
 SET character_set_client = 'utf8mb4';
 SET character_set_results = 'utf8mb4';
 SET character_set_connection = 'utf8mb4';
 SET collation_connection = 'utf8mb4_unicode_ci';
 
-USE clms;
+USE clms_test;
 
 CREATE TABLE IF NOT EXISTS `user_table` (
     `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '用户ID' DEFAULT(
@@ -20,8 +20,6 @@ CREATE TABLE IF NOT EXISTS `user_table` (
     `email` VARCHAR(255) UNIQUE DEFAULT '' COMMENT '用户邮箱',
     `phone` VARCHAR(255) UNIQUE DEFAULT '' COMMENT '用户手机号',
     `password` VARCHAR(255) DEFAULT '' COMMENT '用户密码 (加密)',
-    `class_id` CHAR(32) UNIQUE DEFAULT NULL COMMENT '班级id',
-    `college_id` CHAR(32) UNIQUE DEFAULT NULL COMMENT '学院id',
     `avatar_url` VARCHAR(255) DEFAULT '' COMMENT '用户头像URL',
     `user_roles` JSON NOT NULL COMMENT '用户角色',
     `user_permissions` JSON NOT NULL COMMENT '用户权限',
@@ -148,3 +146,22 @@ CREATE TABLE IF NOT EXISTS `user_role_table` (
     FOREIGN KEY (`user_id`) REFERENCES `user_table` (`id`),
     FOREIGN KEY (`role_id`) REFERENCES `role_table` (`id`)
 ) COMMENT='用户角色关联表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 微信用户关联表
+CREATE TABLE IF NOT EXISTS `wechat_user_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '关联ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `user_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '用户ID',
+    `wechat_openid` VARCHAR(255) NOT NULL UNIQUE COMMENT '微信OpenID',
+    `wechat_unionid` VARCHAR(255) DEFAULT '' COMMENT '微信UnionID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`user_id`) REFERENCES `user_table` (`id`)
+) COMMENT='微信用户关联表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
