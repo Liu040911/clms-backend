@@ -58,9 +58,7 @@ public class SMSListener {
             
             log.info("短信发送成功 - credential: {}", credential);
         } catch (Exception e) {
-            log.error("短信发送失败 - credential: {}", message.getCredential(), e);
-            // 异常会导致消息被拒绝，自动转到死信队列
+            log.error("短信发送失败 - credential: {}", message.getCredential(), e);            // 异常会导致消息被拒绝，自动转到死信队列
             throw new RuntimeException("Failed to send SMS to: " + message.getCredential(), e);
         }
-    }
-}
+    }}

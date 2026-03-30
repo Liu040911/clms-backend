@@ -30,11 +30,7 @@ public class SaTokenHandler implements StpInterface {
     @Override
     public List<String> getPermissionList(Object loginId, String loginType) {
         UserTable userTable = userTableService.getById((String) loginId);
-        return userAuthService.getPermissionListByUserId(
-                userTable.getId())
-                .stream()
-                .map(PermissionBO::getPermissionString)
-                .collect(Collectors.toList());
+        return userTable.getUserPermissions().toList(String.class);
     }
 
     /**
@@ -43,10 +39,6 @@ public class SaTokenHandler implements StpInterface {
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
         UserTable userTable = userTableService.getById((String) loginId);
-        return userAuthService.getUserRoleListByUserId(
-                userTable.getId())
-                .stream()
-                .map(RoleBO::getRoleName)
-                .collect(Collectors.toList());
+        return userTable.getUserRoles().toList(String.class);
     }
 }
