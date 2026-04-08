@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS `user_table` (
     ),
     `nickname` VARCHAR(255) DEFAULT '' COMMENT '用户昵称',
     `gender` TINYINT(1) DEFAULT '0' COMMENT '用户性别：0-未知，1-男，2-女',
-    `email` VARCHAR(255) UNIQUE DEFAULT '' COMMENT '用户邮箱',
-    `phone` VARCHAR(255) UNIQUE DEFAULT '' COMMENT '用户手机号',
+    `email` VARCHAR(255) UNIQUE NULL COMMENT '用户邮箱',
+    `phone` VARCHAR(255) UNIQUE NOT NULL COMMENT '用户手机号',
     `password` VARCHAR(255) DEFAULT '' COMMENT '用户密码 (加密)',
     `avatar_url` VARCHAR(255) DEFAULT '' COMMENT '用户头像URL',
     `user_roles` JSON NOT NULL COMMENT '用户角色',
@@ -165,3 +165,100 @@ CREATE TABLE IF NOT EXISTS `wechat_user_table` (
     PRIMARY KEY (`id`),
     FOREIGN KEY (`user_id`) REFERENCES `user_table` (`id`)
 ) COMMENT='微信用户关联表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 班级表
+CREATE TABLE IF NOT EXISTS `class_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '班级ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `location` VARCHAR(255) DEFAULT '' COMMENT '班级地点',
+    `capacity` INT NOT NULL DEFAULT 0 COMMENT '班级容量',
+    `status` ENUM('active', 'inactive') NOT NULL DEFAULT 'active' COMMENT '班级状态：active表示可用，inactive表示不可用',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`)
+) COMMENT='班级表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 讲座表
+CREATE TABLE IF NOT EXISTS `lecture_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '讲座ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `title` VARCHAR(255) NOT NULL COMMENT '讲座标题',
+    `description` TEXT COMMENT '讲座描述',
+    `cover_image_url` VARCHAR(255) DEFAULT '' COMMENT '讲座封面图片URL',
+    `teacher_id` CHAR(32) DEFAULT '' COMMENT '讲师ID',
+    `teacher_name` VARCHAR(255) DEFAULT '' COMMENT '讲师昵称（冗余）',
+    `registration_starts_time` DATETIME NOT NULL COMMENT '报名开始时间',
+    `registration_ends_time` DATETIME NOT NULL COMMENT '报名结束时间',
+    `lecture_start_time` DATETIME NOT NULL COMMENT '讲座开始时间',
+    `lecture_end_time` DATETIME NOT NULL COMMENT '讲座结束时间',
+    `remaining` INT NOT NULL DEFAULT 0 COMMENT '剩余名额',
+    `status` ENUM('draft', 'pending', 'published', 'finished', 'cancelled') NOT NULL COMMENT '讲座状态：draft表示草稿，pending表示待审核，published表示已发布，finished表示已结束，cancelled表示已取消',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`)
+) COMMENT='讲座表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 讲座班级关联表
+CREATE TABLE IF NOT EXISTS `lecture_class_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '关联ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `lecture_id` CHAR(32) CHARACTER SET ascii UNIQUE NOT NULL COMMENT '讲座ID',
+    `class_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '班级ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_lecture_class` (`lecture_id`, `class_id`),
+    FOREIGN KEY (`lecture_id`) REFERENCES `lecture_table` (`id`),
+    FOREIGN KEY (`class_id`) REFERENCES `class_table` (`id`)
+) COMMENT='讲座班级关联表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 报名表
+CREATE TABLE IF NOT EXISTS `registration_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '报名ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `user_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '用户ID',
+    `lecture_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '讲座ID',
+    `registration_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '报名时间',
+    `status` ENUM('pending', 'cancelled', 'checked_in', 'not_signed_in') NOT NULL DEFAULT 'pending' COMMENT '报名状态：已报名(pending)，已取消(cancelled)，已签到(checked_in)，未签到(not signed in)',
+    `check_in_time` DATETIME DEFAULT NULL COMMENT '签到时间',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_lecture_registration` (`user_id`, `lecture_id`),
+    FOREIGN KEY (`user_id`) REFERENCES `user_table` (`id`),
+    FOREIGN KEY (`lecture_id`) REFERENCES `lecture_table` (`id`)
+) COMMENT='报名表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 应用配置表（动态路由配置）
+CREATE TABLE IF NOT EXISTS `app_config_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '配置ID',
+    `config_data` JSON NOT NULL COMMENT '配置JSON',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`)
+) COMMENT='应用配置表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

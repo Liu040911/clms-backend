@@ -2,6 +2,7 @@ package com.clms.service;
 
 import java.util.List;
 
+import com.clms.entity.bo.RoleBO;
 import com.clms.entity.po.RoleTable;
 
 public interface IUserRoleService {
@@ -17,4 +18,7 @@ public interface IUserRoleService {
      * 获取默认角色字符串列表
     */
     List<RoleTable> getDefaultRoles();
+
+    
+    public List<RoleBO> getUserRoles(String userId);
 }

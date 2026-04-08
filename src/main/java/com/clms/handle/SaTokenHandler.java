@@ -1,15 +1,17 @@
 package com.clms.handle;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
-import com.clms.entity.bo.PermissionBO;
-import com.clms.entity.bo.RoleBO;
-import com.clms.entity.po.UserTable;
-import com.clms.service.IUserAuthService;
-import com.clms.service.data.IUserTableService;
+import com.clms.entity.po.PermissionTable;
+import com.clms.entity.po.RoleTable;
+import com.clms.service.data.IRolePermissionTableService;
+import com.clms.service.data.IUserRoleTableService;
 
 import cn.dev33.satoken.stp.StpInterface;
 import jakarta.annotation.Resource;
@@ -20,17 +22,37 @@ import jakarta.annotation.Resource;
 @Component
 public class SaTokenHandler implements StpInterface {
     @Resource
-    private IUserAuthService userAuthService;
+    private IUserRoleTableService userRoleTableService;
+
     @Resource
-    private IUserTableService userTableService;
+    private IRolePermissionTableService rolePermissionTableService;
 
     /**
      * 返回一个账号所拥有的权限码集合
      */
     @Override
     public List<String> getPermissionList(Object loginId, String loginType) {
-        UserTable userTable = userTableService.getById((String) loginId);
-        return userTable.getUserPermissions().toList(String.class);
+        String userId = String.valueOf(loginId);
+        List<RoleTable> roles = userRoleTableService.getRolesByUserId(userId);
+        if (roles == null || roles.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<String> roleIds = roles.stream()
+                .map(RoleTable::getId)
+                .collect(Collectors.toList());
+
+        List<PermissionTable> permissions = rolePermissionTableService.getPermissionsByRoleIds(roleIds);
+        if (permissions == null || permissions.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Set<String> permissionSet = permissions.stream()
+                .map(PermissionTable::getPermissionString)
+                .filter(permission -> permission != null && !permission.trim().isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        return new ArrayList<>(permissionSet);
     }
 
     /**
@@ -38,7 +60,15 @@ public class SaTokenHandler implements StpInterface {
      */
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
-        UserTable userTable = userTableService.getById((String) loginId);
-        return userTable.getUserRoles().toList(String.class);
+        String userId = String.valueOf(loginId);
+        List<RoleTable> roles = userRoleTableService.getRolesByUserId(userId);
+        if (roles == null || roles.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return roles.stream()
+                .map(RoleTable::getRoleName)
+                .filter(roleName -> roleName != null && !roleName.trim().isEmpty())
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 }

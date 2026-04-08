@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +36,8 @@ import static org.mockito.Mockito.when;
  * 外部接口（阿里云客户端）使用 Mock，服务类内部逻辑使用真实实现。
  */
 @ExtendWith(MockitoExtension.class)
-class AliYunSmsServiceImplTest {
+@Transactional
+public class AliYunSmsServiceImplTest {
 
     private AliYunSmsServiceImpl smsService;
 

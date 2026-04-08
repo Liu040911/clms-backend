@@ -1,13 +1,13 @@
 package com.clms.controller.user;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.clms.entity.base.ResponseEntity;
 import com.clms.entity.bo.UserInfoBO;
 import com.clms.service.IUserAccountService;
-import com.clms.service.IUserAuthService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
@@ -36,5 +36,13 @@ public class UserController {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
         UserInfoBO userInfo = userAccountService.getCurrentUserInfo(userId);
         return ResponseEntity.ok(userInfo);
+    }
+
+    @Operation(summary = "上传用户头像")
+    @PostMapping("/upload/avatar")
+    public ResponseEntity<Void> uploadAvatar(String avatarUrl) {
+        String userId = (String) StpUtil.getTokenInfo().getLoginId();
+        userAccountService.updateUserAvatar(userId, avatarUrl);
+        return ResponseEntity.ok();
     }
 }

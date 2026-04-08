@@ -45,6 +45,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -59,9 +60,10 @@ import java.util.concurrent.TimeUnit;
  * @since 1.0.0
  */
 @SpringBootTest
+@Transactional
 @ActiveProfiles("test")
 @DisplayName("用户认证服务集成测试")
-class UserAuthServiceImplTest {
+public class UserAuthServiceImplTest {
 
     private static final String PHONE_CODE_TEST_PHONE = "13800000001";
     private static final String EMAIL_CODE_TEST_EMAIL = "integration-test@clms.local";
@@ -421,6 +423,28 @@ class UserAuthServiceImplTest {
         user.setUserRoles(new JSONArray(roles));
         user.setUserPermissions(new JSONArray(permissions));
         userTableService.save(user);
+
+        for (String roleName : roles) {
+            RoleTable role = roleTableService.lambdaQuery()
+                    .eq(RoleTable::getRoleName, roleName)
+                    .one();
+            if (role == null) {
+                role = new RoleTable();
+                role.setId("test-role-" + randomId());
+                role.setRoleName(roleName);
+                role.setRoleDescription("test-role-desc-" + roleName);
+                role.setRoleStatus("enabled");
+                role.setDefaultRole(false);
+                roleTableService.save(role);
+            }
+
+            UserRoleTable userRole = new UserRoleTable();
+            userRole.setId("test-user-role-" + randomId());
+            userRole.setUserId(user.getId());
+            userRole.setRoleId(role.getId());
+            userRoleTableService.save(userRole);
+        }
+
         return user;
     }
 
