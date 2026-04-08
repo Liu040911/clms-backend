@@ -1,9 +1,13 @@
 package com.clms.service.impl;
 
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -13,9 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.clms.config.RabbitMQConfig;
 import com.clms.entity.bo.AdminLoginBO;
-import com.clms.entity.bo.PermissionBO;
 import com.clms.entity.bo.RefreshTokenBO;
-import com.clms.entity.bo.RoleBO;
 import com.clms.entity.bo.UserLoginBO;
 import com.clms.entity.bo.VerificationCodeBO;
 import com.clms.entity.dto.AccountRegisterDTO;
@@ -100,16 +102,35 @@ public class UserAuthServiceImpl implements IUserAuthService {
         // 3. 先登录
         StpUtil.login(userTable.getId());
         
-        // 4. 检查是否有管理员权限
-        List<String> roles = userTable.getUserRoles().toList(String.class);
+        // 4. 实时获取角色，检查是否有管理员权限
+        List<RoleTable> roleTables = userRoleTableService.getRolesByUserId(userTable.getId());
+        List<String> roles = roleTables.stream()
+            .map(RoleTable::getRoleName)
+            .toList();
         if (!roles.contains("admin")) {
             // 没有管理员权限，登出并抛出异常
             StpUtil.logout();
             throw new BusinessException(403, "用户无管理员权限");
         }
+
+        // 4.1 校验 admin 分类封禁：只限制后台管理能力，不影响普通用户能力
+        try {
+            StpUtil.checkDisable(userTable.getId(), "admin");
+        } catch (DisableServiceException e) {
+            StpUtil.logout();
+            throw new BusinessException(403, "管理员权限已被停用");
+        }
         
-        // 5. 获取权限
-        List<String> permissions = userTable.getUserPermissions().toList(String.class);
+        // 5. 实时按角色获取权限，避免 user_permissions 快照过期
+        List<String> roleIds = roleTables.stream()
+            .map(RoleTable::getId)
+            .toList();
+        List<PermissionTable> permissionTables = rolePermissionTableService.getPermissionsByRoleIds(roleIds);
+        Set<String> permissionSet = permissionTables.stream()
+            .map(PermissionTable::getPermissionString)
+            .filter(permission -> StrUtil.isNotBlank(permission))
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        List<String> permissions = new ArrayList<>(permissionSet);
         
         // 6. 构建返回数据
         AdminLoginBO result = new AdminLoginBO();
@@ -236,18 +257,13 @@ public class UserAuthServiceImpl implements IUserAuthService {
         List<RoleTable> defaultRoles = userRoleService.getDefaultRoles();
         userRoleService.bindRolesToUser(user.getId(), defaultRoles.stream().map(RoleTable::getId).toList());
 
-        // 6. 获取默认角色关联的权限列表
-        List<String> defaultPermissions = rolePermissionTableService.getPermissionsByRoleIds(
-            defaultRoles.stream().map(RoleTable::getId).toList()
-        ).stream().map(PermissionTable::getPermissionName).toList();
-        user.setUserRoles(new JSONArray(
-            defaultRoles.stream().map(RoleTable::getRoleName).toList()
-        ));
-        user.setUserPermissions(new JSONArray(defaultPermissions));
-        // 6. 执行登录
+        // 6. 实时计算并刷新用户角色/权限快照（兼容现有依赖 user_table 快照的逻辑）
+        refreshUserRoleAndPermissionSnapshot(user);
+
+        // 7. 执行登录
         StpUtil.login(user.getId());
 
-        // 7. 构建返回数据
+        // 8. 构建返回数据
         return buildUserLoginBO(user);
     }
 
@@ -294,10 +310,10 @@ public class UserAuthServiceImpl implements IUserAuthService {
             defaultRoles.stream().map(RoleTable::getRoleName).toList()
         ));
 
-        // 7. 获取默认角色关联的权限列表
+        // 7. 获取默认角色关联的权限列表（初始化快照）
         List<String> defaultPermissions = rolePermissionTableService.getPermissionsByRoleIds(
             defaultRoles.stream().map(RoleTable::getId).toList()
-        ).stream().map(PermissionTable::getPermissionName).toList();
+        ).stream().map(PermissionTable::getPermissionString).toList();
         newUser.setUserPermissions(new JSONArray(defaultPermissions));
 
         // 8. 保存用户信息
@@ -312,7 +328,10 @@ public class UserAuthServiceImpl implements IUserAuthService {
         // 10. 自动登录
         StpUtil.login(newUser.getId());
 
-        // 11. 返回登录结果
+        // 11. 再次实时刷新快照，确保与最新角色关系一致
+        refreshUserRoleAndPermissionSnapshot(newUser);
+
+        // 12. 返回登录结果
         return buildUserLoginBO(newUser);
     }
 
@@ -327,9 +346,33 @@ public class UserAuthServiceImpl implements IUserAuthService {
     private UserLoginBO buildUserLoginBO(UserTable user) {
         UserLoginBO result = new UserLoginBO();
 
+        List<RoleTable> roleTables = userRoleTableService.getRolesByUserId(user.getId());
+        List<String> roles = roleTables.stream()
+            .map(RoleTable::getRoleName)
+            .filter(StrUtil::isNotBlank)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<String> roleIds = roleTables.stream()
+            .map(RoleTable::getId)
+            .filter(StrUtil::isNotBlank)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<String> permissions = roleIds.isEmpty()
+            ? List.of()
+            : rolePermissionTableService.getPermissionsByRoleIds(roleIds)
+                .stream()
+                .map(PermissionTable::getPermissionString)
+                .filter(StrUtil::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+
         // Token信息
         result.setAccessToken(StpUtil.getTokenValue());
         result.setRefreshToken(SaTempUtil.createToken(user.getId(), 60 * 60 * 24 * 7)); // 7天
+        result.setRoles(roles);
+        result.setPermissions(permissions);
         
         long timeout = StpUtil.getTokenTimeout();
         if (timeout > 0) {
@@ -337,6 +380,38 @@ public class UserAuthServiceImpl implements IUserAuthService {
         }
 
         return result;
+    }
+
+    /**
+     * 按用户当前角色关系实时计算并回写 user_table 的角色/权限快照。
+     */
+    private void refreshUserRoleAndPermissionSnapshot(UserTable user) {
+        List<RoleTable> roleTables = userRoleTableService.getRolesByUserId(user.getId());
+
+        List<String> roleNames = roleTables.stream()
+            .map(RoleTable::getRoleName)
+            .filter(StrUtil::isNotBlank)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<String> roleIds = roleTables.stream()
+            .map(RoleTable::getId)
+            .filter(StrUtil::isNotBlank)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<String> permissionStrings = roleIds.isEmpty()
+            ? List.of()
+            : rolePermissionTableService.getPermissionsByRoleIds(roleIds)
+                .stream()
+                .map(PermissionTable::getPermissionString)
+                .filter(StrUtil::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+
+        user.setUserRoles(new JSONArray(roleNames));
+        user.setUserPermissions(new JSONArray(permissionStrings));
+        userTableService.updateById(user);
     }
 
     @Override

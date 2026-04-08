@@ -9,4 +9,9 @@ public interface IUserAccountService {
      * @return 用户信息
     */
     UserInfoBO getCurrentUserInfo(String userId);
+
+    /**
+     * 更新用户头像
+     */
+    void updateUserAvatar(String userId, String avatarUrl);
 }

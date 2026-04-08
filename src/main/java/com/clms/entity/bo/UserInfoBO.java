@@ -34,12 +34,6 @@ public class UserInfoBO extends BaseBO {
     @Schema(description = "性别")
     private String gender;
 
-    @Schema(description = "班级名称")
-    private String className;
-
-    @Schema(description = "学院名称")
-    private String collegeName;
-
     @Schema(description = "当前登录用户的角色")
     private List<String> roles;
 

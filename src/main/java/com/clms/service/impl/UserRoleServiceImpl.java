@@ -1,10 +1,13 @@
 package com.clms.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.clms.entity.bo.RoleBO;
 import com.clms.entity.po.RoleTable;
 import com.clms.entity.po.UserRoleTable;
 import com.clms.service.IUserRoleService;
@@ -60,5 +63,38 @@ public class UserRoleServiceImpl implements IUserRoleService {
         return defaultRoles;
     }
     
+    @Override
+    public List<RoleBO> getUserRoles(String userId) {
+        List<String> roleIds = getUserRoleIds(userId);
+        if (roleIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        userRoleTableService.lambdaQuery()
+                .in(UserRoleTable::getRoleId, roleIds)
+                .list();
+        return roleTableService.lambdaQuery()
+                .in(RoleTable::getId, roleIds)
+                .eq(RoleTable::getRoleStatus, "published")
+                .list()
+                .stream()
+                .map(this::convertToRoleBO)
+                .collect(Collectors.toList());
+    }
+
+    public List<String> getUserRoleIds(String userId) {
+        List<UserRoleTable> userRoleList = userRoleTableService.lambdaQuery()
+                .eq(UserRoleTable::getUserId, userId)
+                .list();
+        return userRoleList.stream()
+                .map(UserRoleTable::getRoleId)
+                .collect(Collectors.toList());
+    }
+
+    private RoleBO convertToRoleBO(RoleTable roleTable) {
+        if (roleTable == null) {
+            return null;
+        }
+        return new RoleBO(roleTable);
+    }
     
 }

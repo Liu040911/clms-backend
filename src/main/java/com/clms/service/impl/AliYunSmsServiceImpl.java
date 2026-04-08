@@ -1,9 +1,6 @@
 package com.clms.service.impl;
 
 import com.aliyun.dypnsapi20170525.Client;
-import com.aliyun.dypnsapi20170525.models.CheckSmsVerifyCodeRequest;
-import com.aliyun.dypnsapi20170525.models.CheckSmsVerifyCodeResponse;
-import com.aliyun.dypnsapi20170525.models.CheckSmsVerifyCodeResponseBody;
 import com.aliyun.dypnsapi20170525.models.SendSmsVerifyCodeRequest;
 import com.aliyun.dypnsapi20170525.models.SendSmsVerifyCodeResponse;
 import com.aliyun.dypnsapi20170525.models.SendSmsVerifyCodeResponseBody;
@@ -13,8 +10,6 @@ import com.clms.utils.RedisConstants;
 
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;

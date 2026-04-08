@@ -45,6 +45,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -59,9 +60,10 @@ import java.util.concurrent.TimeUnit;
  * @since 1.0.0
  */
 @SpringBootTest
+@Transactional
 @ActiveProfiles("test")
 @DisplayName("用户认证服务集成测试")
-class UserAuthServiceImplTest {
+public class UserAuthServiceImplTest {
 
     private static final String PHONE_CODE_TEST_PHONE = "13800000001";
     private static final String EMAIL_CODE_TEST_EMAIL = "integration-test@clms.local";
