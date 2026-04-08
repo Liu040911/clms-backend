@@ -423,6 +423,28 @@ public class UserAuthServiceImplTest {
         user.setUserRoles(new JSONArray(roles));
         user.setUserPermissions(new JSONArray(permissions));
         userTableService.save(user);
+
+        for (String roleName : roles) {
+            RoleTable role = roleTableService.lambdaQuery()
+                    .eq(RoleTable::getRoleName, roleName)
+                    .one();
+            if (role == null) {
+                role = new RoleTable();
+                role.setId("test-role-" + randomId());
+                role.setRoleName(roleName);
+                role.setRoleDescription("test-role-desc-" + roleName);
+                role.setRoleStatus("enabled");
+                role.setDefaultRole(false);
+                roleTableService.save(role);
+            }
+
+            UserRoleTable userRole = new UserRoleTable();
+            userRole.setId("test-user-role-" + randomId());
+            userRole.setUserId(user.getId());
+            userRole.setRoleId(role.getId());
+            userRoleTableService.save(userRole);
+        }
+
         return user;
     }
 
