@@ -16,4 +16,9 @@ public class RedisConstants {
     public static final String STEP_TOKEN = "step:token:";
     // 分步验证状态存活时间
     public static final Long STEP_TOKEN_TTL = 10L;
+
+    public static final String REGISTER_LOCK_KEY_PREFIX = "lecture:register:lock:";
+    public static final long REGISTER_LOCK_EXPIRE_MILLIS = 8000L;
+    public static final int REGISTER_LOCK_RETRY_TIMES = 3;
+    public static final long REGISTER_LOCK_RETRY_INTERVAL_MILLIS = 60L;
 }

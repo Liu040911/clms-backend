@@ -203,12 +203,84 @@ CREATE TABLE IF NOT EXISTS `lecture_table` (
     `lecture_start_time` DATETIME NOT NULL COMMENT '讲座开始时间',
     `lecture_end_time` DATETIME NOT NULL COMMENT '讲座结束时间',
     `remaining` INT NOT NULL DEFAULT 0 COMMENT '剩余名额',
-    `status` ENUM('draft', 'pending', 'published', 'finished', 'cancelled') NOT NULL COMMENT '讲座状态：draft表示草稿，pending表示待审核，published表示已发布，finished表示已结束，cancelled表示已取消',
+    `status` ENUM('draft', 'pending', 'reject','published', 'finished', 'cancelled') NOT NULL COMMENT '讲座状态：draft表示草稿，pending表示待审核，reject表示已驳回，published表示已发布，finished表示已结束，cancelled表示已取消',
+    `reason` VARCHAR(255) DEFAULT '' COMMENT '驳回原因',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
     PRIMARY KEY (`id`)
 ) COMMENT='讲座表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 标签表
+CREATE TABLE IF NOT EXISTS `tag_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '标签ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `tag_name` VARCHAR(50) NOT NULL COMMENT '标签名称',
+    `tag_description` TEXT COMMENT '标签描述',
+    `tag_type` VARCHAR(50) NOT NULL DEFAULT '' COMMENT '标签类型',
+    `tag_status` VARCHAR(50) NOT NULL DEFAULT 'draft' COMMENT '标签状态',
+    `creator_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '创建者ID',
+    `meta_data` JSON COMMENT '标签元数据',
+    `is_system` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否为系统标签：0表示非系统标签，1表示系统标签',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`)
+) COMMENT='标签表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 讲座标签关联表
+CREATE TABLE IF NOT EXISTS `lecture_tag_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '关联ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `lecture_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '讲座ID',
+    `tag_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '标签ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_lecture_tag` (`lecture_id`, `tag_id`),
+    INDEX `idx_lecture_tag_lecture_id` (`lecture_id`),
+    INDEX `idx_lecture_tag_tag_id` (`tag_id`),
+    FOREIGN KEY (`lecture_id`) REFERENCES `lecture_table` (`id`),
+    FOREIGN KEY (`tag_id`) REFERENCES `tag_table` (`id`)
+) COMMENT='讲座标签关联表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 讲座审核记录表
+CREATE TABLE IF NOT EXISTS `lecture_audit_table` (
+    `id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '审核记录ID' DEFAULT(
+        replace (
+                uuid(),
+                _utf8mb3 '-',
+                _utf8mb3 ''
+            )
+    ),
+    `lecture_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '讲座ID',
+    `lecture_title` VARCHAR(255) NOT NULL COMMENT '讲座标题快照',
+    `audit_action` ENUM('approve', 'reject') NOT NULL COMMENT '审核动作：approve表示通过，reject表示驳回',
+    `before_status` VARCHAR(50) NOT NULL COMMENT '审核前状态',
+    `after_status` VARCHAR(50) NOT NULL COMMENT '审核后状态',
+    `reason` VARCHAR(255) DEFAULT '' COMMENT '审核原因/驳回原因',
+    `auditor_id` CHAR(32) CHARACTER SET ascii NOT NULL COMMENT '审核人ID',
+    `auditor_name` VARCHAR(255) DEFAULT '' COMMENT '审核人昵称',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '删除标记：0表示未删除，1表示已删除',
+    PRIMARY KEY (`id`),
+    INDEX `idx_lecture_audit_lecture_id` (`lecture_id`),
+    INDEX `idx_lecture_audit_auditor_id` (`auditor_id`),
+    FOREIGN KEY (`lecture_id`) REFERENCES `lecture_table` (`id`),
+    FOREIGN KEY (`auditor_id`) REFERENCES `user_table` (`id`)
+) COMMENT='讲座审核记录表' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 讲座班级关联表
 CREATE TABLE IF NOT EXISTS `lecture_class_table` (

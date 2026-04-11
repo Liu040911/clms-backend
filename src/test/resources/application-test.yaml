@@ -5,6 +5,10 @@ server:
   port: 8081
 
 spring:
+  autoconfigure:
+    exclude:
+      - dev.langchain4j.community.dashscope.spring.AutoConfig
+
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 使用测试数据库
@@ -20,7 +24,7 @@ spring:
       connection-test-query: SELECT 1
       pool-name: ClmsTestHikariCP
 
-  # Redis 配置（测试环境使用本地Redis）
+    # Redis 配置（测试环境使用本地Redis）
   data:
     redis:
       database: 0
@@ -78,3 +82,6 @@ logging:
   level:
     com.clms: DEBUG
     org.springframework: INFO
+
+ai:
+  enabled: false
