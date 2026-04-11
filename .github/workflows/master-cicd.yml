@@ -202,7 +202,7 @@ jobs:
     - name: 使用 test 配置运行测试（内存优化）
       run: |
         export MAVEN_OPTS="-Xmx2g -XX:+UseG1GC"
-        mvn -B test -Dspring.profiles.active=test -Dspring.autoconfigure.exclude=dev.langchain4j.community.dashscope.spring.AutoConfig -Dfork.count=1 -DreuseForks=true --file pom.xml
+        mvn -B test -Dspring.profiles.active=test -Dai.enabled=false -Dspring.autoconfigure.exclude=dev.langchain4j.community.dashscope.spring.AutoConfig -Dfork.count=1 -DreuseForks=true --file pom.xml
       env:
         SPRING_PROFILES_ACTIVE: test
     
