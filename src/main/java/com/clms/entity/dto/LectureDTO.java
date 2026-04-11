@@ -39,6 +39,8 @@ public class LectureDTO {
 
     private String status;
 
+    private String reason;
+
     private String classId;
 
     // 兼容旧版前端提交的数组字段，业务层会校验只能有一个教室。

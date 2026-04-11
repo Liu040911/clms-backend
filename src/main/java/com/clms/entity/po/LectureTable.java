@@ -36,4 +36,6 @@ public class LectureTable extends BasePO {
 
     private String status;
 
+    private String reason;
+
 }

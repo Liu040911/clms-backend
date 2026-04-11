@@ -2,6 +2,7 @@ package com.clms.entity.bo;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.clms.entity.po.LectureTable;
 
@@ -34,9 +35,13 @@ public class LectureBO {
 
     private String status;
 
+    private String reason;
+
     private String classId;
 
     private String location;
+
+    private List<LectureTagBO> tags;
 
     private LocalDateTime createTime;
 
@@ -55,7 +60,9 @@ public class LectureBO {
         this.lectureEndTime = table.getLectureEndTime();
         this.remaining = table.getRemaining();
         this.status = table.getStatus();
+        this.reason = table.getReason();
         this.createTime = table.getCreateTime();
         this.updateTime = table.getUpdateTime();
+        this.tags = List.of();
     }
 }

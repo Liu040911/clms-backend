@@ -11,6 +11,7 @@ public enum LectureStatusEnum {
 
     DRAFT("draft", "草稿"),
     PENDING("pending", "待审核"),
+    REJECT("reject", "已驳回"),
     PUBLISHED("published", "已发布"),
     FINISHED("finished", "已结束"),
     CANCELLED("cancelled", "已取消");

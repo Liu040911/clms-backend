@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.clms.mapper.LectureTableMapper">
+
+    <!-- V1热门榜：按报名量统计，优先展示已发布且未开讲的讲座；支持按标签过滤 -->
+    <select id="selectHotLectureList" resultType="com.clms.entity.bo.HotLectureBO">
+        SELECT
+            l.id AS id,
+            l.title AS title,
+            l.cover_image_url AS posterUrl,
+            '' AS tag,
+            COUNT(r.id) AS hotValue
+        FROM lecture_table l
+        LEFT JOIN registration_table r
+            ON r.lecture_id = l.id
+           AND r.deleted = 0
+           AND r.status &lt;&gt; 'cancelled'
+        <if test="tagId != null and tagId != ''">
+            INNER JOIN lecture_tag_table lt
+                ON lt.lecture_id = l.id
+               AND lt.deleted = 0
+               AND lt.tag_id = #{tagId}
+        </if>
+        WHERE l.deleted = 0
+          AND l.status = 'published'
+          AND l.lecture_start_time &gt;= NOW()
+        GROUP BY l.id, l.title, l.cover_image_url
+        ORDER BY hotValue DESC, l.create_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

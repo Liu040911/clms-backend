@@ -14,6 +14,9 @@ spring:
   config:
     import: optional:file:.env[.properties],optional:file:clms-backend/.env[.properties]
 
+  jackson:
+    time-zone: Asia/Shanghai
+
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://mysql:3306/clms?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&remarks=true&useInformationSchema=true&tinyInt1isBit=true&useSSL=false&allowPublicKeyRetrieval=true
@@ -184,3 +187,13 @@ qiniu:
     access-key: ${QINIU_ACCESS_KEY:}
     # 七牛云SecretKey
     secret-key: ${QINIU_SECRET_KEY:}
+
+langchain4j:
+  community:
+    dashscope:
+      chat-model:
+        api-key: ${ALIYUN_QWEN_API_KEY:}
+        # 文本对话请使用文本模型，避免模型-端点不匹配触发 url error
+        model-name: qwen-plus
+        # DashScope 文本推理端点（可通过环境变量覆盖为 intl/us/coding 专属地址）
+        base-url: ${ALIYUN_QWEN_BASE_URL:https://dashscope.aliyuncs.com/api/v1}
