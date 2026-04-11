@@ -10,6 +10,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -46,7 +48,6 @@ import com.clms.utils.CommonUtil;
 import com.clms.utils.DataContainerConvertor;
 
 import cn.hutool.core.util.StrUtil;
-import dev.langchain4j.data.message.UserMessage;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -76,13 +77,14 @@ public class LectureServiceImpl implements ILectureService {
     @Resource
     private ILectureTagTableService lectureTagTableService;
 
-    @Resource
+    @Autowired(required = false)
     private IAiChatService aiChatService;
 
     @Resource
     private LectureTableMapper lectureTableMapper;
 
-    @Resource(name = "asyncPoolTaskExecutor")
+    @Autowired(required = false)
+    @Qualifier("asyncPoolTaskExecutor")
     private ThreadPoolTaskExecutor asyncPoolTaskExecutor;
 
     @Override
@@ -122,11 +124,14 @@ public class LectureServiceImpl implements ILectureService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                CompletableFuture.runAsync(() -> bindLectureTagByAi(lectureTable), asyncPoolTaskExecutor)
-                        .exceptionally(ex -> {
-                            log.error("异步绑定讲座标签失败, lectureId={}, error={}", lectureTable.getId(), ex.getMessage(), ex);
-                            return null;
-                        });
+                CompletableFuture<Void> bindFuture = asyncPoolTaskExecutor == null
+                        ? CompletableFuture.runAsync(() -> bindLectureTagByAi(lectureTable))
+                        : CompletableFuture.runAsync(() -> bindLectureTagByAi(lectureTable), asyncPoolTaskExecutor);
+
+                bindFuture.exceptionally(ex -> {
+                    log.error("异步绑定讲座标签失败, lectureId={}, error={}", lectureTable.getId(), ex.getMessage(), ex);
+                    return null;
+                });
             }
         });
     }
@@ -465,6 +470,11 @@ public class LectureServiceImpl implements ILectureService {
     }
 
     private void bindLectureTagByAi(LectureTable lectureTable) {
+        if (aiChatService == null) {
+            log.info("AI disabled or not configured; skip lecture auto-tagging. lectureId={}", lectureTable.getId());
+            return;
+        }
+
         List<TagTable> lectureTags = tagTableService.lambdaQuery()
                 .eq(TagTable::getTagType, "lecture")
                 .eq(TagTable::getTagStatus, "active")
