@@ -1,5 +1,8 @@
 # Application properties for CLMS backend
 spring:
+  autoconfigure:
+    exclude:
+      - dev.langchain4j.community.dashscope.spring.AutoConfig
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/clms_test?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&remarks=true&useInformationSchema=true&tinyInt1isBit=true&useSSL=false&allowPublicKeyRetrieval=true
@@ -59,3 +62,5 @@ spring:
     publisher-confirm-type: correlated
     template:
       mandatory: true
+ai:
+  enabled: false

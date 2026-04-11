@@ -2,6 +2,7 @@ package com.clms.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import com.clms.service.IAiChatService;
 
@@ -10,6 +11,7 @@ import dev.langchain4j.service.AiServices;
 import jakarta.annotation.Resource;
 
 @Configuration
+@ConditionalOnProperty(name = "ai.enabled", havingValue = "true", matchIfMissing = true)
 public class AiModelFactory {
     
     @Resource
