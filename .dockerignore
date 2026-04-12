@@ -1,0 +1,65 @@
+# ===========================================
+# Docker 构建时需要排除的文件和目录
+# ===========================================
+
+# Git 相关（版本控制信息不需要）
+.git/
+.gitignore
+.gitattributes
+
+# GitHub Actions（CI/CD 配置不需要）
+.github/
+
+# 构建产物和缓存（Maven 会重新构建）
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# IDE 配置文件
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*~
+
+# 日志文件
+*.log
+logs/
+
+# 环境配置文件（可能包含敏感信息）
+.env
+.env.*
+!.env.example
+
+# 部署配置（不需要在容器内）
+deploy/
+docker-compose*.yml
+docker-compose*.yaml
+
+# 文档文件（减少镜像大小）
+docs/
+*.md
+!README.md
+
+# 前端资源（如果不需要）
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# 其他开发文件
+*.orig
+*.rej
+*.swp
+
+# 测试报告和覆盖率
+coverage/
+test-results/
+
+# Dockerfile 本身（避免无限递归）
+Dockerfile*
+.dockerignore
