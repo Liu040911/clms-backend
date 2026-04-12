@@ -317,7 +317,7 @@ jobs:
       run: |
         set -e
         cd "$DEPLOY_PATH"
-        export IMAGE_FULL="ghcr.io/${IMAGE_NAME}:snapshot"
+        export BACKEND_IMAGE="ghcr.io/${IMAGE_NAME}:snapshot"
         docker compose -f "$DEPLOY_COMPOSE_FILE" pull "$DEPLOY_SERVICE"
         docker compose -f "$DEPLOY_COMPOSE_FILE" stop "$DEPLOY_SERVICE"
         docker compose -f "$DEPLOY_COMPOSE_FILE" up -d "$DEPLOY_SERVICE"

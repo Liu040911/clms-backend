@@ -51,7 +51,7 @@ services:
       - clms-net
       
   clms-backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/Liu040911/clms-backend:snapshot}
+    image: ${BACKEND_IMAGE:-ghcr.io/liu040911/clms-backend:snapshot}
     container_name: clms-backend
     restart: unless-stopped
     ports:
@@ -67,7 +67,7 @@ services:
       - clms-net
 
   clms-admin:
-    image: ${ADMIN_IMAGE:-ghcr.io/Liu040911/clms-admin:latest}
+    image: ${ADMIN_IMAGE:-ghcr.io/liu040911/clms-admin:latest}
     container_name: clms-admin
     restart: unless-stopped
     ports:
@@ -78,7 +78,7 @@ services:
       - clms-net
 
   clms-app:
-    image: ${APP_IMAGE:-ghcr.io/Liu040911/clms-app:latest}
+    image: ${APP_IMAGE:-ghcr.io/liu040911/clms-app:latest}
     container_name: clms-app
     restart: unless-stopped
     ports:
