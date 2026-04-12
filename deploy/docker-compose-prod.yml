@@ -1,0 +1,93 @@
+services:
+  mysql:
+    image: "mysql:latest"
+    container_name: mysql
+    restart: always
+    environment:
+      - "MYSQL_DATABASE=clms"
+      - "MYSQL_PASSWORD=liujiawei2004"
+      - "MYSQL_ROOT_PASSWORD=liujiawei2004"
+      - "MYSQL_USER=liu"
+      - "TZ=Asia/Shanghai"
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/datadir:/var/lib/mysql
+      - ./mysql/config/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - clms-net
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis/logs:/logs
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - clms-net
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=baile
+      - RABBITMQ_DEFAULT_PASS=bailetrangren-rabbitmq
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq
+      - ./rabbitmq/config:/etc/rabbitmq
+    networks:
+      - clms-net
+      
+  clms-backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/Liu040911/clms-backend:snapshot}
+    container_name: clms-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      TZ: Asia/Shanghai
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - clms-net
+
+  clms-admin:
+    image: ${ADMIN_IMAGE:-ghcr.io/Liu040911/clms-admin:latest}
+    container_name: clms-admin
+    restart: unless-stopped
+    ports:
+      - "8848:80"
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - clms-net
+
+  clms-app:
+    image: ${APP_IMAGE:-ghcr.io/Liu040911/clms-app:latest}
+    container_name: clms-app
+    restart: unless-stopped
+    ports:
+      - "9000:80"
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - clms-net
+
+networks:
+  clms-net:
+    name: clms-net
