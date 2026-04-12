@@ -312,7 +312,7 @@ jobs:
     - name: 在 Runner 主机执行部署
       env:
         DEPLOY_PATH: /home/github-runner/actions-runner/deploy
-        DEPLOY_COMPOSE_FILE: docker-compose-prod.yml
+        DEPLOY_COMPOSE_FILE: docker-compose-prod.yaml
         DEPLOY_SERVICE: clms-backend
       run: |
         set -e
