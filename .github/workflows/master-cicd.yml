@@ -291,7 +291,7 @@ jobs:
 
   deploy:
     name: 部署到自托管 Runner
-    runs-on: [self-hosted, clms-deploy]
+    runs-on: [self-hosted, back-deploy]
     needs: publish-docker
     if: ${{ success() && github.event_name == 'workflow_dispatch' }}
     environment: production
