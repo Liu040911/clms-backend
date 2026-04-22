@@ -17,7 +17,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         public static String[] ORIGINS = {
                         "http://localhost:9000",
                         "http://localhost:8848",
-                        "http://localhost:5173"
+                        "http://localhost:5173",
+                        "http://app.liuservice.online",
+                        "http://admin.liuservice.online",
+                        "https://app.liuservice.online",
+                        "https://admin.liuservice.online",
         };
 
         /**

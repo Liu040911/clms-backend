@@ -1,4 +1,4 @@
--- Active: 1764214974199@@192.168.10.134@3306@clms_test
+-- Active: 1776868316691@@49.234.51.49@3306@clms
 SET NAMES utf8mb4;
 SET character_set_client = 'utf8mb4';
 SET character_set_results = 'utf8mb4';
