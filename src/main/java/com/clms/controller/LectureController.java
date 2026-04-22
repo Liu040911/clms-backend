@@ -13,14 +13,20 @@ import org.springframework.web.bind.annotation.RestController;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.clms.entity.base.ResponseEntity;
 import com.clms.entity.bo.HotLectureBO;
+import com.clms.entity.bo.LectureAnalyticsOverviewBO;
+import com.clms.entity.bo.LectureAnalyticsTagTopBO;
+import com.clms.entity.bo.LectureAnalyticsTrendPointBO;
 import com.clms.entity.bo.LectureAuditBO;
 import com.clms.entity.bo.LectureBO;
+import com.clms.entity.bo.LectureCheckInQrCodeBO;
 import com.clms.entity.bo.LectureTagBO;
 import com.clms.entity.dto.LectureDTO;
+import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.ILectureService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaIgnore;
+import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -36,6 +42,9 @@ public class LectureController {
 
 	@Resource
 	private ILectureService lectureService;
+
+	@Resource
+	private IUserLectureRegistrationService userLectureRegistrationService;
 
 	@Operation(summary = "创建讲座")
 	@PostMapping("/create")
@@ -121,5 +130,44 @@ public class LectureController {
 			@RequestParam(defaultValue = "6") Integer limit) {
 		// V1热门：按报名量排序，支持可选标签过滤。
 		return ResponseEntity.ok(lectureService.getHotLectureList(tagId, limit));
+	}
+
+	@Operation(summary = "教师端获取讲座签到二维码")
+	@GetMapping("/check-in/qrcode")
+	public ResponseEntity<LectureCheckInQrCodeBO> getLectureCheckInQrCode(@RequestParam @NotBlank String lectureId) {
+        String userId = (String) StpUtil.getTokenInfo().getLoginId();
+		return ResponseEntity.ok(userLectureRegistrationService.getLectureCheckInQrCode(userId, lectureId));
+	}
+
+	@Operation(summary = "讲座分析概览")
+	@GetMapping("/analytics/overview")
+	public ResponseEntity<LectureAnalyticsOverviewBO> getLectureAnalyticsOverview(
+			@RequestParam(required = false) String startTime,
+			@RequestParam(required = false) String endTime,
+			@RequestParam(required = false) String teacherId,
+			@RequestParam(required = false) String tagId,
+			@RequestParam(required = false) String classId) {
+		return ResponseEntity.ok(lectureService.getLectureAnalyticsOverview(startTime, endTime, teacherId, tagId, classId));
+	}
+
+	@Operation(summary = "讲座分析趋势")
+	@GetMapping("/analytics/trend")
+	public ResponseEntity<List<LectureAnalyticsTrendPointBO>> getLectureAnalyticsTrend(
+			@RequestParam(required = false) String startTime,
+			@RequestParam(required = false) String endTime,
+			@RequestParam(defaultValue = "day") String granularity,
+			@RequestParam(required = false) String teacherId,
+			@RequestParam(required = false) String tagId) {
+		return ResponseEntity.ok(lectureService.getLectureAnalyticsTrend(startTime, endTime, granularity, teacherId, tagId));
+	}
+
+	@Operation(summary = "讲座标签热度Top")
+	@GetMapping("/analytics/tag-top")
+	public ResponseEntity<List<LectureAnalyticsTagTopBO>> getLectureAnalyticsTagTop(
+			@RequestParam(required = false) String startTime,
+			@RequestParam(required = false) String endTime,
+			@RequestParam(defaultValue = "10") Integer topN,
+			@RequestParam(defaultValue = "registration") String metric) {
+		return ResponseEntity.ok(lectureService.getLectureAnalyticsTagTop(startTime, endTime, topN, metric));
 	}
 }

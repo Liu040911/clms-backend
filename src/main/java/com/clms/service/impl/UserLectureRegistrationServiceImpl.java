@@ -1,6 +1,7 @@
 package com.clms.service.impl;
 
 import java.sql.Timestamp;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.clms.entity.bo.LectureCheckInQrCodeBO;
 import com.clms.entity.bo.RegistrationBO;
 import com.clms.entity.bo.UserLectureAppointmentBO;
 import com.clms.entity.po.ClassTable;
@@ -36,6 +38,8 @@ import com.clms.utils.CommonUtil;
 import com.clms.utils.RedisConstants;
 
 import cn.hutool.core.util.StrUtil;
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.extra.qrcode.QrCodeUtil;
 import jakarta.annotation.Resource;
 
 @Service
@@ -294,25 +298,205 @@ public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrat
         return resultPage;
     }
 
+    @Override
+    /**
+     * 生成讲座签到二维码。
+     *
+     * 设计要点：
+     * 1) 仅讲座所属教师或管理员允许生成签到码，防止越权发码。
+     * 2) 二维码内容为短时 token，真实讲座ID仅存 Redis，降低信息泄露风险。
+     * 3) token 设置较短 TTL，过期后自动失效，减少截屏复用风险。
+     *
+     * @param operatorUserId 当前登录操作者ID（来自 Sa-Token）
+     * @param lectureId 目标讲座ID
+     * @return 包含二维码 base64、过期时间、TTL 的返回体
+     */
+    public LectureCheckInQrCodeBO getLectureCheckInQrCode(String operatorUserId, String lectureId) {
+        // 1) 入参校验：保证讲座ID存在，避免无效查询。
+        if (StrUtil.isBlank(lectureId)) {
+            throw new BusinessException(400, "讲座ID不能为空");
+        }
+
+        // 2) 资源校验：讲座必须存在。
+        LectureTable lecture = lectureTableService.getById(lectureId);
+        if (lecture == null) {
+            throw new BusinessException(404, "讲座不存在");
+        }
+
+        // 3) 权限校验：管理员可操作任意讲座；教师仅可操作自己负责讲座。
+        boolean isAdmin = StpUtil.hasRole("admin");
+        if (!isAdmin && !StrUtil.equals(lecture.getTeacherId(), operatorUserId)) {
+            throw new BusinessException(403, "仅讲座所属教师或管理员可获取签到二维码");
+        }
+
+        // 4) 讲座时间窗口校验：仅允许在讲座进行中生成签到二维码。
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        if (lecture.getLectureStartTime() == null || lecture.getLectureEndTime() == null) {
+            throw new BusinessException(400, "讲座时间配置不完整，暂无法生成签到二维码");
+        }
+        if (now.before(lecture.getLectureStartTime())) {
+            throw new BusinessException(400, "讲座未开始，暂不可生成签到二维码");
+        }
+        if (now.after(lecture.getLectureEndTime())) {
+            throw new BusinessException(400, "讲座已结束，无法生成签到二维码");
+        }
+
+        // 5) 生成一次性短时 token，并将 token -> lectureId 映射存入 Redis。
+        //    扫码端只拿到 token，服务端再反查 lectureId，避免直接暴露业务主键。
+        String token = UUID.randomUUID().toString();
+        String tokenKey = RedisConstants.LECTURE_CHECK_IN_QR_TOKEN_PREFIX + token;
+        stringRedisTemplate.opsForValue().set(
+                tokenKey,
+                lectureId,
+                RedisConstants.LECTURE_CHECK_IN_QR_TOKEN_TTL_SECONDS,
+                TimeUnit.SECONDS);
+
+        // 6) 生成二维码 PNG 并编码为 base64，便于前端直接展示。
+        byte[] pngBytes = QrCodeUtil.generatePng(token, 300, 300);
+        String qrCodeBase64 = "data:image/png;base64," + Base64.getEncoder().encodeToString(pngBytes);
+
+        // 7) 返回二维码内容及有效期信息，前端可用于倒计时与刷新。
+        LectureCheckInQrCodeBO result = new LectureCheckInQrCodeBO();
+        result.setLectureId(lectureId);
+        result.setQrCodeBase64(qrCodeBase64);
+        result.setTtlSeconds(RedisConstants.LECTURE_CHECK_IN_QR_TOKEN_TTL_SECONDS);
+        result.setExpireAt(new Timestamp(System.currentTimeMillis() + RedisConstants.LECTURE_CHECK_IN_QR_TOKEN_TTL_SECONDS * 1000));
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    /**
+     * 用户通过扫码 token 完成签到。
+     *
+     * 设计要点：
+     * 1) 先校验 token 有效性，再做业务校验，避免无效请求进入数据库流程。
+     * 2) 使用 user+lecture 维度短锁抑制并发重复签到请求。
+     * 3) 最终通过状态条件更新（pending -> checked_in）确保幂等与并发安全。
+     *
+     * @param userId 当前登录用户ID（签到人）
+     * @param token 扫码得到的短时 token
+     * @return 签到后的报名记录
+     */
+    public RegistrationBO checkInByQrCode(String userId, String token) {
+        // 1) 基础校验：token 必须存在。
+        if (StrUtil.isBlank(token)) {
+            throw new BusinessException(400, "签到token不能为空");
+        }
+
+        // 2) token 反查讲座ID：不存在表示二维码已过期或无效。
+        String tokenKey = RedisConstants.LECTURE_CHECK_IN_QR_TOKEN_PREFIX + token;
+        String lectureId = stringRedisTemplate.opsForValue().get(tokenKey);
+        if (StrUtil.isBlank(lectureId)) {
+            throw new BusinessException(400, "签到二维码无效或已过期");
+        }
+
+        // 3) user+lecture 维度分布式短锁：降低瞬时并发下重复签到冲突。
+        String lockKey = RedisConstants.LECTURE_CHECK_IN_SCAN_LOCK_KEY_PREFIX + lectureId + ":" + userId;
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryAcquireLock(
+                lockKey,
+                lockValue,
+                RedisConstants.LECTURE_CHECK_IN_SCAN_LOCK_EXPIRE_MILLIS,
+                RedisConstants.REGISTER_LOCK_RETRY_TIMES,
+                RedisConstants.REGISTER_LOCK_RETRY_INTERVAL_MILLIS);
+        if (!locked) {
+            throw new BusinessException(429, "当前签到人数较多，请稍后重试");
+        }
+
+        try {
+            // 4) 用户与讲座存在性校验。
+            UserTable user = userTableService.getById(userId);
+            if (user == null) {
+                throw new BusinessException(404, "用户不存在");
+            }
+
+            LectureTable lecture = lectureTableService.getById(lectureId);
+            if (lecture == null) {
+                throw new BusinessException(404, "讲座不存在");
+            }
+
+            // 5) 签到时间窗口校验：不允许讲座开始前或结束后签到。
+            Timestamp now = new Timestamp(System.currentTimeMillis());
+            if (lecture.getLectureStartTime() != null && now.before(lecture.getLectureStartTime())) {
+                throw new BusinessException(400, "讲座未开始，暂不可签到");
+            }
+            if (lecture.getLectureEndTime() != null && now.after(lecture.getLectureEndTime())) {
+                throw new BusinessException(400, "讲座已结束，无法签到");
+            }
+
+            // 6) 报名记录校验：必须先报名。
+            RegistrationTable registration = registrationTableService.lambdaQuery()
+                    .eq(RegistrationTable::getUserId, userId)
+                    .eq(RegistrationTable::getLectureId, lectureId)
+                    .one();
+            if (registration == null) {
+                throw new BusinessException(404, "您未报名该讲座，无法签到");
+            }
+
+            // 7) 状态前置校验：取消/已签到都不允许再次签到。
+            if (StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CANCELLED.getStatus())) {
+                throw new BusinessException(400, "报名已取消，无法签到");
+            }
+
+            if (StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CHECKED_IN.getStatus())) {
+                throw new BusinessException(400, "您已签到，请勿重复签到");
+            }
+
+            if (!StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.PENDING.getStatus())) {
+                throw new BusinessException(400, "当前报名状态不支持签到");
+            }
+
+            // 8) 条件更新实现幂等：仅当当前状态仍为 pending 才能更新为 checked_in。
+            boolean checkedIn = registrationTableService.lambdaUpdate()
+                    .eq(RegistrationTable::getId, registration.getId())
+                    .eq(RegistrationTable::getStatus, RegistrationStatusEnum.PENDING.getStatus())
+                    .set(RegistrationTable::getStatus, RegistrationStatusEnum.CHECKED_IN.getStatus())
+                    .set(RegistrationTable::getCheckInTime, now)
+                    .update();
+            if (!checkedIn) {
+                throw new BusinessException(500, "签到失败，请稍后重试");
+            }
+
+            // 9) 返回最新状态记录。
+            RegistrationTable latest = registrationTableService.getById(registration.getId());
+            return new RegistrationBO(latest);
+        } finally {
+            // 10) 兜底释放短锁，避免锁泄漏影响后续签到。
+            releaseLockSafely(lockKey, lockValue);
+        }
+    }
+
     private boolean tryAcquireRegisterLock(String lockKey, String lockValue) {
+        return tryAcquireLock(
+                lockKey,
+                lockValue,
+                RedisConstants.REGISTER_LOCK_EXPIRE_MILLIS,
+                RedisConstants.REGISTER_LOCK_RETRY_TIMES,
+                RedisConstants.REGISTER_LOCK_RETRY_INTERVAL_MILLIS);
+    }
+
+    private void releaseRegisterLockSafely(String lockKey, String lockValue) {
+        releaseLockSafely(lockKey, lockValue);
+    }
+
+    private boolean tryAcquireLock(String lockKey, String lockValue, long expireMillis, int retryTimes, long retryIntervalMillis) {
         // 通过短重试平滑瞬时竞争，减少高峰期直接失败率。
-        for (int i = 0; i < RedisConstants.REGISTER_LOCK_RETRY_TIMES; i++) {
+        for (int i = 0; i < retryTimes; i++) {
             Long result = stringRedisTemplate.execute(
                     ACQUIRE_LOCK_SCRIPT,
                     Collections.singletonList(lockKey),
                     lockValue,
-                    String.valueOf(RedisConstants.REGISTER_LOCK_EXPIRE_MILLIS));
+                    String.valueOf(expireMillis));
 
             if (result != null && result == 1L) {
                 return true;
             }
 
-            // 仅在非最后一次重试时等待，最后一次重试后直接放弃，快速反馈。
-            if (i < RedisConstants.REGISTER_LOCK_RETRY_TIMES - 1) {
+            if (i < retryTimes - 1) {
                 try {
-                    TimeUnit.MILLISECONDS.sleep(RedisConstants.REGISTER_LOCK_RETRY_INTERVAL_MILLIS);
+                    TimeUnit.MILLISECONDS.sleep(retryIntervalMillis);
                 } catch (InterruptedException e) {
-                    // 恢复中断标记并尽快返回，避免吞掉中断信号。
                     Thread.currentThread().interrupt();
                     return false;
                 }
@@ -321,7 +505,7 @@ public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrat
         return false;
     }
 
-    private void releaseRegisterLockSafely(String lockKey, String lockValue) {
+    private void releaseLockSafely(String lockKey, String lockValue) {
         try {
             // 仅删除“自己持有”的锁，避免误删其他线程已续约/重入后的锁。
             stringRedisTemplate.execute(

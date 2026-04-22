@@ -21,4 +21,10 @@ public class RedisConstants {
     public static final long REGISTER_LOCK_EXPIRE_MILLIS = 8000L;
     public static final int REGISTER_LOCK_RETRY_TIMES = 3;
     public static final long REGISTER_LOCK_RETRY_INTERVAL_MILLIS = 60L;
+
+    public static final String LECTURE_CHECK_IN_QR_TOKEN_PREFIX = "lecture:checkin:token:";
+    public static final long LECTURE_CHECK_IN_QR_TOKEN_TTL_SECONDS = 60L;
+
+    public static final String LECTURE_CHECK_IN_SCAN_LOCK_KEY_PREFIX = "lecture:checkin:scan:lock:";
+    public static final long LECTURE_CHECK_IN_SCAN_LOCK_EXPIRE_MILLIS = 5000L;
 }

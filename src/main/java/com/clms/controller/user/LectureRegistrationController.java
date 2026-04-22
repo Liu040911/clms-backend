@@ -23,6 +23,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 @RestController
 @RequestMapping("/user/registration")
@@ -59,5 +60,12 @@ public class LectureRegistrationController {
         }
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
         return ResponseEntity.ok(userLectureRegistrationService.getUserLectureAppointmentList(userId, status, page, size));
+    }
+
+    @Operation(summary = "用户扫码讲座签到")
+    @PostMapping("/check-in/scan")
+    public ResponseEntity<RegistrationBO> checkInByQrCode(@NotNull String qrToken) {
+        String userId = (String) StpUtil.getTokenInfo().getLoginId();
+        return ResponseEntity.ok(userLectureRegistrationService.checkInByQrCode(userId, qrToken));
     }
 }
