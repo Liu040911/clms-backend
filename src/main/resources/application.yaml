@@ -203,17 +203,3 @@ wechat:
   push:
     token: ${WECHAT_PUSH_TOKEN:}
     encoding-aes-key: ${WECHAT_PUSH_ENCODING_AES_KEY:}
-
-# Spring Boot Actuator 配置
-management:
-  endpoints:
-    web:
-      base-path: /actuator
-      exposure:
-        include: "*"
-  endpoint:
-    health:
-      # 显示详细健康信息
-      show-details: always
-      probes:
-        enabled: true
