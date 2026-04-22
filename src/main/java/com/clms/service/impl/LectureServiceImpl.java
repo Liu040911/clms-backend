@@ -2,10 +2,19 @@ package com.clms.service.impl;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.WeekFields;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
@@ -19,6 +28,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.clms.entity.bo.HotLectureBO;
+import com.clms.entity.bo.LectureAnalyticsOverviewBO;
+import com.clms.entity.bo.LectureAnalyticsTagTopBO;
+import com.clms.entity.bo.LectureAnalyticsTrendPointBO;
 import com.clms.entity.bo.LectureAuditBO;
 import com.clms.entity.bo.LectureBO;
 import com.clms.entity.bo.LectureTagBO;
@@ -27,10 +39,12 @@ import com.clms.entity.po.LectureAuditTable;
 import com.clms.entity.po.ClassTable;
 import com.clms.entity.po.LectureClassTable;
 import com.clms.entity.po.LectureTagTable;
+import com.clms.entity.po.RegistrationTable;
 import com.clms.entity.po.LectureTable;
 import com.clms.entity.po.TagTable;
 import com.clms.entity.po.UserTable;
 import com.clms.enums.LectureStatusEnum;
+import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
 import com.clms.mapper.LectureTableMapper;
 import com.clms.service.IAiChatService;
@@ -40,13 +54,13 @@ import com.clms.service.data.ILectureAuditTableService;
 import com.clms.service.data.ILectureClassTableService;
 import com.clms.service.data.ILectureTagTableService;
 import com.clms.service.data.ILectureTableService;
+import com.clms.service.data.IRegistrationTableService;
 import com.clms.service.data.ITagTableService;
 import com.clms.service.data.IUserTableService;
 import com.clms.utils.CommonUtil;
 import com.clms.utils.DataContainerConvertor;
 
 import cn.hutool.core.util.StrUtil;
-import dev.langchain4j.data.message.UserMessage;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +68,9 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class LectureServiceImpl implements ILectureService {
+
+    private static final Pattern AI_LABEL_PATTERN = Pattern.compile("<label>\\s*(.*?)\\s*</label>", Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter DATE_KEY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Resource
     private ILectureTableService lectureTableService;
@@ -75,6 +92,9 @@ public class LectureServiceImpl implements ILectureService {
 
     @Resource
     private ILectureTagTableService lectureTagTableService;
+
+    @Resource
+    private IRegistrationTableService registrationTableService;
 
     @Resource
     private IAiChatService aiChatService;
@@ -452,6 +472,354 @@ public class LectureServiceImpl implements ILectureService {
         return hotList;
     }
 
+    @Override
+    public LectureAnalyticsOverviewBO getLectureAnalyticsOverview(String startTime, String endTime, String teacherId, String tagId,
+            String classId) {
+        LocalDateTime[] range = resolveTimeRange(startTime, endTime);
+        LocalDateTime start = range[0];
+        LocalDateTime end = range[1];
+
+        List<LectureTable> scopedLectures = queryScopedLectures(start, end, teacherId, tagId, classId);
+        Set<String> lectureIds = scopedLectures.stream().map(LectureTable::getId).collect(Collectors.toSet());
+
+        LectureAnalyticsOverviewBO result = new LectureAnalyticsOverviewBO();
+        result.setTotalLectures((long) scopedLectures.size());
+        result.setPublishedLectures(countLectureByStatus(scopedLectures, LectureStatusEnum.PUBLISHED.getStatus()));
+        result.setPendingLectures(countLectureByStatus(scopedLectures, LectureStatusEnum.PENDING.getStatus()));
+        result.setRejectedLectures(countLectureByStatus(scopedLectures, LectureStatusEnum.REJECT.getStatus()));
+        result.setFinishedLectures(countLectureByStatus(scopedLectures, LectureStatusEnum.FINISHED.getStatus()));
+        result.setCancelledLectures(countLectureByStatus(scopedLectures, LectureStatusEnum.CANCELLED.getStatus()));
+
+        if (lectureIds.isEmpty()) {
+            result.setTotalRegistrations(0L);
+            result.setTotalCheckIns(0L);
+            result.setTotalCancelledRegistrations(0L);
+            result.setCheckInRate(0D);
+            result.setCancelRate(0D);
+            result.setAvgAttendanceRate(0D);
+            return result;
+        }
+
+        List<RegistrationTable> registrations = registrationTableService.lambdaQuery()
+                .in(RegistrationTable::getLectureId, lectureIds)
+                .ge(RegistrationTable::getRegistrationTime, Timestamp.valueOf(start))
+                .le(RegistrationTable::getRegistrationTime, Timestamp.valueOf(end))
+                .list();
+
+        long totalRegistrations = registrations.stream()
+                .filter(item -> !StrUtil.equals(item.getStatus(), RegistrationStatusEnum.CANCELLED.getStatus()))
+                .count();
+        long totalCancelled = registrations.stream()
+                .filter(item -> StrUtil.equals(item.getStatus(), RegistrationStatusEnum.CANCELLED.getStatus()))
+                .count();
+        long totalCheckIns = registrations.stream()
+                .filter(item -> StrUtil.equals(item.getStatus(), RegistrationStatusEnum.CHECKED_IN.getStatus()))
+                .count();
+
+        result.setTotalRegistrations(totalRegistrations);
+        result.setTotalCancelledRegistrations(totalCancelled);
+        result.setTotalCheckIns(totalCheckIns);
+        result.setCheckInRate(calcRate(totalCheckIns, totalRegistrations));
+        result.setCancelRate(calcRate(totalCancelled, totalRegistrations + totalCancelled));
+        result.setAvgAttendanceRate(calcRate(totalCheckIns, totalRegistrations));
+
+        return result;
+    }
+
+    @Override
+    public List<LectureAnalyticsTrendPointBO> getLectureAnalyticsTrend(String startTime, String endTime, String granularity,
+            String teacherId, String tagId) {
+        LocalDateTime[] range = resolveTimeRange(startTime, endTime);
+        LocalDateTime start = range[0];
+        LocalDateTime end = range[1];
+        String finalGranularity = normalizeGranularity(granularity);
+
+        List<String> buckets = generateBuckets(start, end, finalGranularity);
+        Map<String, LectureAnalyticsTrendPointBO> pointMap = new HashMap<>();
+        for (String bucket : buckets) {
+            LectureAnalyticsTrendPointBO point = new LectureAnalyticsTrendPointBO();
+            point.setTime(bucket);
+            point.setCreatedCount(0L);
+            point.setPublishedCount(0L);
+            point.setRegistrationCount(0L);
+            point.setCheckInCount(0L);
+            point.setCancelCount(0L);
+            pointMap.put(bucket, point);
+        }
+
+        List<LectureTable> scopedLectures = queryScopedLectures(start, end, teacherId, tagId, null);
+        Set<String> lectureIds = scopedLectures.stream().map(LectureTable::getId).collect(Collectors.toSet());
+
+        for (LectureTable lecture : scopedLectures) {
+            String key = bucketKey(lecture.getCreateTime(), finalGranularity);
+            LectureAnalyticsTrendPointBO point = pointMap.get(key);
+            if (point != null) {
+                point.setCreatedCount(point.getCreatedCount() + 1);
+            }
+        }
+
+        if (!lectureIds.isEmpty()) {
+            List<LectureAuditTable> audits = lectureAuditTableService.lambdaQuery()
+                    .in(LectureAuditTable::getLectureId, lectureIds)
+                    .eq(LectureAuditTable::getAuditAction, "approve")
+                    .ge(LectureAuditTable::getCreateTime, start)
+                    .le(LectureAuditTable::getCreateTime, end)
+                    .list();
+            for (LectureAuditTable audit : audits) {
+                String key = bucketKey(audit.getCreateTime(), finalGranularity);
+                LectureAnalyticsTrendPointBO point = pointMap.get(key);
+                if (point != null) {
+                    point.setPublishedCount(point.getPublishedCount() + 1);
+                }
+            }
+
+            List<RegistrationTable> registrations = registrationTableService.lambdaQuery()
+                    .in(RegistrationTable::getLectureId, lectureIds)
+                    .ge(RegistrationTable::getRegistrationTime, Timestamp.valueOf(start))
+                    .le(RegistrationTable::getRegistrationTime, Timestamp.valueOf(end))
+                    .list();
+            for (RegistrationTable registration : registrations) {
+                LocalDateTime registrationTime = registration.getRegistrationTime() == null
+                        ? null
+                        : registration.getRegistrationTime().toLocalDateTime();
+                if (registrationTime != null) {
+                    String key = bucketKey(registrationTime, finalGranularity);
+                    LectureAnalyticsTrendPointBO point = pointMap.get(key);
+                    if (point != null) {
+                        if (StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CANCELLED.getStatus())) {
+                            point.setCancelCount(point.getCancelCount() + 1);
+                        } else {
+                            point.setRegistrationCount(point.getRegistrationCount() + 1);
+                        }
+                    }
+                }
+
+                if (StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CHECKED_IN.getStatus())
+                        && registration.getCheckInTime() != null) {
+                    String key = bucketKey(registration.getCheckInTime().toLocalDateTime(), finalGranularity);
+                    LectureAnalyticsTrendPointBO point = pointMap.get(key);
+                    if (point != null) {
+                        point.setCheckInCount(point.getCheckInCount() + 1);
+                    }
+                }
+            }
+        }
+
+        return buckets.stream().map(pointMap::get).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LectureAnalyticsTagTopBO> getLectureAnalyticsTagTop(String startTime, String endTime, Integer topN, String metric) {
+        LocalDateTime[] range = resolveTimeRange(startTime, endTime);
+        LocalDateTime start = range[0];
+        LocalDateTime end = range[1];
+        String finalMetric = normalizeMetric(metric);
+        int finalTopN = topN == null || topN < 1 ? 10 : Math.min(topN, 50);
+
+        List<LectureTable> scopedLectures = queryScopedLectures(start, end, null, null, null);
+        Set<String> lectureIds = scopedLectures.stream().map(LectureTable::getId).collect(Collectors.toSet());
+        if (lectureIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<LectureTagTable> relations = lectureTagTableService.lambdaQuery()
+                .in(LectureTagTable::getLectureId, lectureIds)
+                .list();
+        if (relations.isEmpty()) {
+            return List.of();
+        }
+
+        Set<String> tagIds = relations.stream().map(LectureTagTable::getTagId).filter(StrUtil::isNotBlank).collect(Collectors.toSet());
+        Map<String, TagTable> tagMap = tagTableService.listByIds(tagIds).stream()
+                .filter(tag -> StrUtil.equals(tag.getTagType(), "lecture") && StrUtil.equals(tag.getTagStatus(), "active"))
+                .collect(Collectors.toMap(TagTable::getId, Function.identity(), (a, b) -> a));
+
+        Map<String, Long> lectureMetricMap = new HashMap<>();
+        if (StrUtil.equals(finalMetric, "lectureCount")) {
+            for (String lectureId : lectureIds) {
+                lectureMetricMap.put(lectureId, 1L);
+            }
+        } else {
+            List<RegistrationTable> registrations = registrationTableService.lambdaQuery()
+                    .in(RegistrationTable::getLectureId, lectureIds)
+                    .ge(RegistrationTable::getRegistrationTime, Timestamp.valueOf(start))
+                    .le(RegistrationTable::getRegistrationTime, Timestamp.valueOf(end))
+                    .list();
+
+            for (RegistrationTable registration : registrations) {
+                if (StrUtil.equals(finalMetric, "registration")
+                        && !StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CANCELLED.getStatus())) {
+                    lectureMetricMap.merge(registration.getLectureId(), 1L, Long::sum);
+                }
+                if (StrUtil.equals(finalMetric, "checkin")
+                        && StrUtil.equals(registration.getStatus(), RegistrationStatusEnum.CHECKED_IN.getStatus())) {
+                    lectureMetricMap.merge(registration.getLectureId(), 1L, Long::sum);
+                }
+            }
+        }
+
+        Map<String, Long> tagMetricMap = new HashMap<>();
+        for (LectureTagTable relation : relations) {
+            TagTable tag = tagMap.get(relation.getTagId());
+            if (tag == null) {
+                continue;
+            }
+            Long value = lectureMetricMap.getOrDefault(relation.getLectureId(), 0L);
+            if (value > 0) {
+                tagMetricMap.merge(tag.getId(), value, Long::sum);
+            }
+        }
+
+        return tagMetricMap.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(finalTopN)
+                .map(entry -> {
+                    TagTable tag = tagMap.get(entry.getKey());
+                    LectureAnalyticsTagTopBO item = new LectureAnalyticsTagTopBO();
+                    item.setTagId(entry.getKey());
+                    item.setTagName(tag == null ? "未知标签" : StrUtil.blankToDefault(tag.getTagName(), "未知标签"));
+                    item.setMetricValue(entry.getValue());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<LectureTable> queryScopedLectures(LocalDateTime start, LocalDateTime end, String teacherId, String tagId,
+            String classId) {
+        List<LectureTable> lectures = lectureTableService.lambdaQuery()
+                .ge(LectureTable::getCreateTime, start)
+                .le(LectureTable::getCreateTime, end)
+                .eq(StrUtil.isNotBlank(teacherId), LectureTable::getTeacherId, teacherId)
+                .list();
+
+        if (lectures.isEmpty()) {
+            return lectures;
+        }
+
+        Set<String> lectureIds = lectures.stream().map(LectureTable::getId).collect(Collectors.toSet());
+        if (StrUtil.isNotBlank(tagId)) {
+            Set<String> tagLectureIds = lectureTagTableService.lambdaQuery()
+                    .eq(LectureTagTable::getTagId, tagId)
+                    .in(LectureTagTable::getLectureId, lectureIds)
+                    .list()
+                    .stream()
+                    .map(LectureTagTable::getLectureId)
+                    .collect(Collectors.toSet());
+            lectureIds = new HashSet<>(tagLectureIds);
+        }
+
+        if (StrUtil.isNotBlank(classId) && !lectureIds.isEmpty()) {
+            Set<String> classLectureIds = lectureClassTableService.lambdaQuery()
+                    .eq(LectureClassTable::getClassId, classId)
+                    .in(LectureClassTable::getLectureId, lectureIds)
+                    .list()
+                    .stream()
+                    .map(LectureClassTable::getLectureId)
+                    .collect(Collectors.toSet());
+            lectureIds = new HashSet<>(classLectureIds);
+        }
+
+        if (lectureIds.isEmpty()) {
+            return List.of();
+        }
+        Set<String> finalLectureIds = lectureIds;
+        return lectures.stream().filter(item -> finalLectureIds.contains(item.getId())).collect(Collectors.toList());
+    }
+
+    private long countLectureByStatus(List<LectureTable> lectures, String status) {
+        return lectures.stream().filter(item -> StrUtil.equals(item.getStatus(), status)).count();
+    }
+
+    private String normalizeGranularity(String granularity) {
+        if (StrUtil.equalsAnyIgnoreCase(granularity, "day", "week", "month")) {
+            return granularity.toLowerCase();
+        }
+        return "day";
+    }
+
+    private String normalizeMetric(String metric) {
+        if (StrUtil.equalsAnyIgnoreCase(metric, "registration", "checkin", "lectureCount")) {
+            return metric;
+        }
+        return "registration";
+    }
+
+    private LocalDateTime[] resolveTimeRange(String startTime, String endTime) {
+        LocalDateTime defaultEnd = LocalDateTime.now();
+        LocalDateTime defaultStart = defaultEnd.minusDays(30).with(LocalTime.MIN);
+        LocalDateTime start = parseDateTime(startTime, defaultStart, false);
+        LocalDateTime end = parseDateTime(endTime, defaultEnd, true);
+        if (start.isAfter(end)) {
+            throw new BusinessException(400, "开始时间不能晚于结束时间");
+        }
+        return new LocalDateTime[] { start, end };
+    }
+
+    private LocalDateTime parseDateTime(String raw, LocalDateTime defaultValue, boolean endOfDayWhenDateOnly) {
+        if (StrUtil.isBlank(raw)) {
+            return defaultValue;
+        }
+        String trimmed = StrUtil.trim(raw);
+        List<DateTimeFormatter> formatters = List.of(
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+                DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                return LocalDateTime.parse(trimmed, formatter);
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        try {
+            LocalDateTime parsedDate = LocalDateTime.of(
+                    java.time.LocalDate.parse(trimmed, DateTimeFormatter.ofPattern("yyyy-MM-dd")),
+                    endOfDayWhenDateOnly ? LocalTime.MAX : LocalTime.MIN);
+            return parsedDate;
+        } catch (DateTimeParseException ignored) {
+            throw new BusinessException(400, "时间格式非法，请使用 yyyy-MM-dd 或 yyyy-MM-dd HH:mm:ss");
+        }
+    }
+
+    private List<String> generateBuckets(LocalDateTime start, LocalDateTime end, String granularity) {
+        List<String> buckets = new ArrayList<>();
+        LocalDateTime cursor = start;
+        while (!cursor.isAfter(end)) {
+            buckets.add(bucketKey(cursor, granularity));
+            if (StrUtil.equals(granularity, "day")) {
+                cursor = cursor.plusDays(1).with(LocalTime.MIN);
+            } else if (StrUtil.equals(granularity, "week")) {
+                cursor = cursor.plusWeeks(1).with(LocalTime.MIN);
+            } else {
+                cursor = cursor.plusMonths(1).withDayOfMonth(1).with(LocalTime.MIN);
+            }
+        }
+        return buckets.stream().distinct().collect(Collectors.toList());
+    }
+
+    private String bucketKey(LocalDateTime dateTime, String granularity) {
+        if (dateTime == null) {
+            return "";
+        }
+        if (StrUtil.equals(granularity, "week")) {
+            WeekFields wf = WeekFields.ISO;
+            int week = dateTime.get(wf.weekOfWeekBasedYear());
+            int year = dateTime.get(wf.weekBasedYear());
+            return year + "-W" + String.format("%02d", week);
+        }
+        if (StrUtil.equals(granularity, "month")) {
+            return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+        }
+        return dateTime.format(DATE_KEY_FORMATTER);
+    }
+
+    private double calcRate(long numerator, long denominator) {
+        if (denominator <= 0) {
+            return 0D;
+        }
+        return Math.round((numerator * 10000.0 / denominator)) / 100.0;
+    }
+
     private void saveLectureClassRelation(String lectureId, String classId) {
         LectureClassTable relation = new LectureClassTable();
         relation.setId(CommonUtil.generateUuidV7());
@@ -480,10 +848,16 @@ public class LectureServiceImpl implements ILectureService {
                 .distinct()
                 .collect(Collectors.joining("、"));
 
-        String userPrompt = "讲座标题：" + StrUtil.blankToDefault(lectureTable.getTitle(), "") + "\n"
-                + "讲座内容：" + StrUtil.blankToDefault(lectureTable.getDescription(), "") + "\n"
-                + "可选标签：" + candidateTagNames + "\n"
-                + "请严格从可选标签中选择最匹配的一项，并仅返回标签名称。";
+        String userPrompt = "任务：请为讲座选择一个最匹配标签。\n"
+            + "讲座标题：" + StrUtil.blankToDefault(lectureTable.getTitle(), "") + "\n"
+            + "讲座内容：" + StrUtil.blankToDefault(lectureTable.getDescription(), "") + "\n"
+            + "可选标签（仅可从以下中选1个）：" + candidateTagNames + "\n"
+            + "输出规则（必须严格遵守）：\n"
+            + "1. 只输出一行；\n"
+            + "2. 只能按此格式输出：<label>标签名称</label>；\n"
+            + "3. 标签名称必须完全等于可选标签中的某一项；\n"
+            + "4. 禁止输出解释、标点、代码块、换行或其他任何内容。\n"
+            + "示例：<label>科研分享</label>";
 
         String aiResult;
         try {
@@ -521,6 +895,19 @@ public class LectureServiceImpl implements ILectureService {
     private TagTable matchTagFromAiResult(String aiResult, List<TagTable> lectureTags) {
         if (StrUtil.isBlank(aiResult) || lectureTags == null || lectureTags.isEmpty()) {
             return null;
+        }
+
+        // 优先解析约定格式：<label>标签名称</label>
+        Matcher matcher = AI_LABEL_PATTERN.matcher(aiResult);
+        if (matcher.find()) {
+            String xmlTagName = StrUtil.trim(matcher.group(1));
+            TagTable fromXml = lectureTags.stream()
+                    .filter(tag -> StrUtil.equals(StrUtil.trim(tag.getTagName()), xmlTagName))
+                    .findFirst()
+                    .orElse(null);
+            if (fromXml != null) {
+                return fromXml;
+            }
         }
 
         String normalized = StrUtil.trim(aiResult)

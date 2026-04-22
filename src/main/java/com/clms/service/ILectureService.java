@@ -4,6 +4,9 @@ import java.util.List;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.clms.entity.bo.HotLectureBO;
+import com.clms.entity.bo.LectureAnalyticsOverviewBO;
+import com.clms.entity.bo.LectureAnalyticsTagTopBO;
+import com.clms.entity.bo.LectureAnalyticsTrendPointBO;
 import com.clms.entity.bo.LectureAuditBO;
 import com.clms.entity.bo.LectureBO;
 import com.clms.entity.bo.LectureTagBO;
@@ -31,4 +34,12 @@ public interface ILectureService {
     List<LectureTagBO> getLectureTagList();
 
     List<HotLectureBO> getHotLectureList(String tagId, Integer limit);
+
+    LectureAnalyticsOverviewBO getLectureAnalyticsOverview(String startTime, String endTime, String teacherId, String tagId,
+        String classId);
+
+    List<LectureAnalyticsTrendPointBO> getLectureAnalyticsTrend(String startTime, String endTime, String granularity, String teacherId,
+        String tagId);
+
+    List<LectureAnalyticsTagTopBO> getLectureAnalyticsTagTop(String startTime, String endTime, Integer topN, String metric);
 }
