@@ -1,6 +1,17 @@
-# Docker Compose 配置 - 测试环境
-# 用于 GitHub Actions CI/CD 流水线中的自动化测试
-# 包含 MySQL、Redis、RabbitMQ 等核心依赖服务
+# Docker Compose 配置 - 测试环境（沙盒隔离）
+# Harness Engineering Phase 3: 沙盒安全 - 只读数据卷 + 隔离网络
+# 用于本地开发和 GitHub Actions CI/CD 流水线中的自动化测试
+#
+# 沙盒规则:
+#   1. MySQL/Redis/RabbitMQ 数据卷不与生产环境共享
+#   2. 测试网络隔离 (test-sandbox) 不与外部网络桥接
+#   3. 各服务仅对内暴露必要端口
+# ============================================================
+
+volumes:
+  test-mysql-data:    # 沙盒 MySQL 数据卷（生命周期同测试容器）
+    driver: local
+  test-rabbitmq-data: # 沙盒 RabbitMQ 数据卷
 
 services:
   mysql:
@@ -14,14 +25,16 @@ services:
       - 'MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-liujiawei2004}'
     ports:
       - '3306:3306'
+    volumes:
+      - 'test-mysql-data:/var/lib/mysql'   # 沙盒数据卷
     networks:
-      - test-network
+      - test-sandbox
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
       interval: 5s
       timeout: 3s
       retries: 10
-    command: 
+    command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --default-authentication-plugin=mysql_native_password
@@ -33,7 +46,7 @@ services:
     ports:
       - '6379:6379'
     networks:
-      - test-network
+      - test-sandbox
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -50,8 +63,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: liu
       RABBITMQ_DEFAULT_PASS: liujiawei2004
+    volumes:
+      - 'test-rabbitmq-data:/var/lib/rabbitmq'  # 沙盒数据卷
     networks:
-      - test-network
+      - test-sandbox
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_running && rabbitmqctl list_users | grep -q liu"]
       interval: 10s
@@ -60,5 +75,11 @@ services:
       start_period: 30s
 
 networks:
-  test-network:
+  test-sandbox:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: clms-test-sandbox
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+          gateway: 172.29.0.1
