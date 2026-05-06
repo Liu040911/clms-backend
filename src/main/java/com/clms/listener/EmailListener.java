@@ -2,8 +2,6 @@ package com.clms.listener;
 
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 
-import java.util.concurrent.TimeUnit;
-
 import org.apache.commons.mail.SimpleEmail;
 import org.springframework.amqp.rabbit.annotation.Exchange;
 import org.springframework.amqp.rabbit.annotation.Queue;
@@ -15,9 +13,7 @@ import org.springframework.stereotype.Component;
 
 import com.clms.config.RabbitMQConfig;
 import com.clms.entity.bo.VerificationCodeBO;
-import com.clms.utils.RedisConstants;
 
-import cn.hutool.core.util.RandomUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 
