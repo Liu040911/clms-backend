@@ -250,6 +250,64 @@
 			<plugins>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<version>3.5.0</version>
+					<executions>
+						<execution>
+							<id>enforce-architecture-rules</id>
+							<goals>
+								<goal>enforce</goal>
+							</goals>
+							<configuration>
+								<rules>
+									<bannedImports>
+										<includes>
+											<include>com.clms.controller.*com.clms.mapper.*</include>
+											<include>com.clms.controller.*com.clms.service.data.*</include>
+										</includes>
+										<message>❌ Controller 不得引用 Mapper 或 DataService 层。✅ FIX: 通过 service/ 层访问数据。📖 docs/architecture/overview.md</message>
+									</bannedImports>
+									<requireJavaVersion>
+										<version>[21,)</version>
+									</requireJavaVersion>
+									<requireMavenVersion>
+										<version>[3.9,)</version>
+									</requireMavenVersion>
+								</rules>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-checkstyle-plugin</artifactId>
+					<version>3.6.0</version>
+					<dependencies>
+						<dependency>
+							<groupId>com.puppycrawl.tools</groupId>
+							<artifactId>checkstyle</artifactId>
+							<version>10.21.4</version>
+						</dependency>
+					</dependencies>
+					<configuration>
+						<configLocation>checkstyle.xml</configLocation>
+						<encoding>UTF-8</encoding>
+						<failOnViolation>true</failOnViolation>
+						<violationSeverity>warning</violationSeverity>
+						<logViolationsToConsole>true</logViolationsToConsole>
+					</configuration>
+					<executions>
+						<execution>
+							<id>checkstyle-verify</id>
+							<phase>validate</phase>
+							<goals>
+								<goal>check</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
 					<version>3.11.0</version>
 					<configuration>
