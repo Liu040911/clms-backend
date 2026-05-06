@@ -41,7 +41,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -97,7 +97,7 @@ public class UserAuthServiceImplTest {
     /**
      * 外部接口（阿里云短信）使用 Mock，避免测试触达真实第三方服务。
      */
-    @MockBean
+    @MockitoBean
     private ISmsService smsService;
 
     @BeforeEach

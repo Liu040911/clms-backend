@@ -12,7 +12,7 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 使用测试数据库
-    url: jdbc:mysql://localhost:3306/clms_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://192.168.10.134:3306/clms_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: liujiawei2004
     hikari:
@@ -28,7 +28,7 @@ spring:
   data:
     redis:
       database: 0
-      host: localhost
+      host: 192.168.10.134
       port: 6379
       timeout: 10s
       lettuce:
@@ -40,7 +40,7 @@ spring:
 
   # RabbitMQ 配置（测试环境使用本地RabbitMQ）
   rabbitmq:
-    host: localhost
+    host: 192.168.10.134
     port: 5672
     username: liu
     password: liujiawei2004
