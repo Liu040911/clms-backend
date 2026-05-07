@@ -2,11 +2,14 @@ package com.clms.controller.user;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.clms.entity.base.ResponseEntity;
 import com.clms.entity.bo.UserInfoBO;
+import com.clms.entity.dto.UserUpdateCredentialDTO;
+import com.clms.entity.dto.UserUpdateInfoDTO;
 import com.clms.service.IUserAccountService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
@@ -14,6 +17,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.validation.Valid;
 
 /**
  * 用户控制器
@@ -43,6 +47,22 @@ public class UserController {
     public ResponseEntity<Void> uploadAvatar(String avatarUrl) {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
         userAccountService.updateUserAvatar(userId, avatarUrl);
+        return ResponseEntity.ok();
+    }
+
+    @Operation(summary = "更新用户个人信息（昵称、性别）")
+    @PostMapping("/updateInfo")
+    public ResponseEntity<Void> updateInfo(@Valid @RequestBody UserUpdateInfoDTO dto) {
+        String userId = (String) StpUtil.getTokenInfo().getLoginId();
+        userAccountService.updateUserInfo(userId, dto);
+        return ResponseEntity.ok();
+    }
+
+    @Operation(summary = "更新手机号或邮箱（需验证码）")
+    @PostMapping("/updateCredential")
+    public ResponseEntity<Void> updateCredential(@Valid @RequestBody UserUpdateCredentialDTO dto) {
+        String userId = (String) StpUtil.getTokenInfo().getLoginId();
+        userAccountService.updateUserCredential(userId, dto);
         return ResponseEntity.ok();
     }
 }

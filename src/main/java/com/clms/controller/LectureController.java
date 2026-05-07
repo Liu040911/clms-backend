@@ -132,6 +132,14 @@ public class LectureController {
 		return ResponseEntity.ok(lectureService.getHotLectureList(tagId, limit));
 	}
 
+	@Operation(summary = "手动结束讲座（仅教师或管理员）")
+	@PostMapping("/end")
+	public ResponseEntity<Void> endLecture(@RequestParam @NotBlank String lectureId) {
+		String userId = (String) StpUtil.getTokenInfo().getLoginId();
+		lectureService.endLecture(userId, lectureId);
+		return ResponseEntity.ok();
+	}
+
 	@Operation(summary = "教师端获取讲座签到二维码")
 	@GetMapping("/check-in/qrcode")
 	public ResponseEntity<LectureCheckInQrCodeBO> getLectureCheckInQrCode(@RequestParam @NotBlank String lectureId) {

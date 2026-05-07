@@ -203,7 +203,7 @@ CREATE TABLE IF NOT EXISTS `lecture_table` (
     `lecture_start_time` DATETIME NOT NULL COMMENT '讲座开始时间',
     `lecture_end_time` DATETIME NOT NULL COMMENT '讲座结束时间',
     `remaining` INT NOT NULL DEFAULT 0 COMMENT '剩余名额',
-    `status` ENUM('draft', 'pending', 'reject','published', 'finished', 'cancelled') NOT NULL COMMENT '讲座状态：draft表示草稿，pending表示待审核，reject表示已驳回，published表示已发布，finished表示已结束，cancelled表示已取消',
+    `status` ENUM('draft', 'pending', 'reject','published', 'registering', 'ongoing', 'finished', 'cancelled') NOT NULL COMMENT '讲座状态：draft草稿，pending待审核，reject已驳回，published已发布，registering报名中，ongoing进行中，finished已结束，cancelled已取消',
     `reason` VARCHAR(255) DEFAULT '' COMMENT '驳回原因',
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

@@ -20,16 +20,24 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.clms.entity.bo.LectureBO;
 import com.clms.entity.po.ClassTable;
 import com.clms.entity.po.LectureTable;
+import com.clms.entity.po.RegistrationTable;
 import com.clms.entity.po.TagTable;
+import com.clms.entity.po.UserTable;
+import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
 import com.clms.service.IAiChatService;
 import com.clms.service.ILectureService;
+import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.data.IClassTableService;
 import com.clms.service.data.ILectureTableService;
+import com.clms.service.data.IRegistrationTableService;
 import com.clms.service.data.ITagTableService;
+import com.clms.service.data.IUserTableService;
 import com.clms.utils.CommonUtil;
 import com.clms.enums.LectureStatusEnum;
 
+import cn.dev33.satoken.stp.StpUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import jakarta.annotation.Resource;
@@ -52,16 +60,30 @@ class LectureServiceImplTest {
     @Resource
     private ITagTableService tagTableService;
 
+    @Resource
+    private IRegistrationTableService registrationTableService;
+
+    @Resource
+    private IUserTableService userTableService;
+
+    @Resource
+    private IUserLectureRegistrationService userLectureRegistrationService;
+
     @MockitoBean
     private IAiChatService aiChatService;
 
     private String testLectureId;
     private String testClassId;
     private String testTagId;
+    private String testTeacherId;
+    private String testRegUserId;
     private final String uniqueSuffix = String.valueOf(System.nanoTime());
 
     @BeforeEach
     void setUp() {
+        testTeacherId = "endlec-teacher-" + CommonUtil.generateUuidV7().substring(0, 12);
+        testRegUserId = "endlec-user-" + CommonUtil.generateUuidV7().substring(0, 12);
+        StpUtil.login(testTeacherId);
         testLectureId = null;
         testClassId = "test-class-" + CommonUtil.generateUuidV7().substring(0, 12);
         testTagId = "test-tag-" + CommonUtil.generateUuidV7().substring(0, 12);
@@ -87,9 +109,16 @@ class LectureServiceImplTest {
 
     @AfterEach
     void tearDown() {
+        StpUtil.logout();
         if (testLectureId != null) {
+            registrationTableService.lambdaUpdate()
+                    .eq(RegistrationTable::getUserId, testRegUserId)
+                    .remove();
             lectureTableService.removeById(testLectureId);
         }
+        userTableService.lambdaUpdate()
+                .eq(UserTable::getId, testRegUserId)
+                .remove();
         classTableService.removeById(testClassId);
         tagTableService.removeById(testTagId);
     }
@@ -171,5 +200,113 @@ class LectureServiceImplTest {
         lecture.setRemaining(100);
         lectureTableService.save(lecture);
         testLectureId = lecture.getId();
+    }
+
+    private LectureTable createOngoingTestLecture() {
+        Timestamp past = new Timestamp(System.currentTimeMillis() - 120000);
+        Timestamp future = new Timestamp(System.currentTimeMillis() + 3600000);
+
+        LectureTable lecture = new LectureTable();
+        lecture.setId("endlec-" + CommonUtil.generateUuidV7().substring(0, 12));
+        lecture.setTitle("EndLecture-" + uniqueSuffix);
+        lecture.setDescription("End lecture test");
+        lecture.setStatus(LectureStatusEnum.ONGOING.getStatus());
+        lecture.setTeacherId(testTeacherId);
+        lecture.setTeacherName("结束测试教师");
+        lecture.setRegistrationStartsTime(new Timestamp(System.currentTimeMillis() - 180000));
+        lecture.setRegistrationEndsTime(past);
+        lecture.setLectureStartTime(past);
+        lecture.setLectureEndTime(future);
+        lecture.setRemaining(100);
+        lectureTableService.save(lecture);
+        testLectureId = lecture.getId();
+        return lecture;
+    }
+
+    @Test
+    @DisplayName("endLecture: 不存在讲座应抛404")
+    void endLecture_shouldThrowWhenLectureNotExists() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> lectureService.endLecture(testTeacherId, "nonexistent-lecture-999"));
+        assertEquals(404, ex.getCode());
+    }
+
+    @Test
+    @DisplayName("endLecture: 非ONGOING状态应抛400")
+    void endLecture_shouldRejectNonOngoingLecture() {
+        createPublishedTestLecture();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> lectureService.endLecture(testTeacherId, testLectureId));
+        assertEquals(400, ex.getCode());
+    }
+
+    @Test
+    @DisplayName("endLecture: 非讲座教师且非管理员应抛403")
+    void endLecture_shouldRejectNonTeacherNonAdmin() {
+        LectureTable lecture = createOngoingTestLecture();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> lectureService.endLecture("some-other-user-id", lecture.getId()));
+        assertEquals(403, ex.getCode());
+    }
+
+    @Test
+    @DisplayName("endLecture: 讲座所属教师可结束，标记逻辑分离验证")
+    void endLecture_shouldAllowTeacherToEnd() {
+        LectureTable lecture = createOngoingTestLecture();
+
+        UserTable user = new UserTable();
+        user.setId(testRegUserId);
+        user.setNickname("endlec-" + System.nanoTime());
+        user.setPhone("180" + System.nanoTime() % 100000000L);
+        user.setEmail("endlec-" + System.nanoTime() + "@clms.local");
+        user.setPassword(DigestUtil.md5Hex("Pass@123" + testRegUserId));
+        user.setUserRoles(new JSONArray());
+        user.setUserPermissions(new JSONArray());
+        userTableService.save(user);
+
+        RegistrationTable reg = new RegistrationTable();
+        reg.setId(CommonUtil.generateUuidV7());
+        reg.setUserId(testRegUserId);
+        reg.setLectureId(lecture.getId());
+        reg.setStatus(RegistrationStatusEnum.PENDING.getStatus());
+        reg.setRegistrationTime(new Timestamp(System.currentTimeMillis()));
+        registrationTableService.save(reg);
+
+        lectureService.endLecture(testTeacherId, lecture.getId());
+
+        LectureTable updated = lectureTableService.getById(lecture.getId());
+        assertEquals(LectureStatusEnum.FINISHED.getStatus(), updated.getStatus());
+
+        userLectureRegistrationService.markAbsentRegistrations(lecture.getId());
+
+        RegistrationTable updatedReg = registrationTableService.getById(reg.getId());
+        assertEquals(RegistrationStatusEnum.NOT_SIGNED_IN.getStatus(), updatedReg.getStatus());
+    }
+
+    @Test
+    @DisplayName("endLecture: 已结束讲座拒绝重复操作")
+    void endLecture_shouldRejectAlreadyFinished() {
+        Timestamp past = new Timestamp(System.currentTimeMillis() - 3600000);
+
+        LectureTable lecture = new LectureTable();
+        lecture.setId("endlec-fin-" + CommonUtil.generateUuidV7().substring(0, 12));
+        lecture.setTitle("AlreadyFinished-" + uniqueSuffix);
+        lecture.setStatus(LectureStatusEnum.FINISHED.getStatus());
+        lecture.setTeacherId(testTeacherId);
+        lecture.setTeacherName("已结束教师");
+        lecture.setRegistrationStartsTime(new Timestamp(past.getTime() - 3600000));
+        lecture.setRegistrationEndsTime(new Timestamp(past.getTime() - 1800000));
+        lecture.setLectureStartTime(past);
+        lecture.setLectureEndTime(new Timestamp(past.getTime() + 1800000));
+        lecture.setRemaining(100);
+        lectureTableService.save(lecture);
+        testLectureId = lecture.getId();
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> lectureService.endLecture(testTeacherId, testLectureId));
+        assertEquals(400, ex.getCode());
+        assertTrue(ex.getMessage().contains("已结束"));
     }
 }

@@ -17,4 +17,6 @@ public interface IUserLectureRegistrationService {
     LectureCheckInQrCodeBO getLectureCheckInQrCode(String operatorUserId, String lectureId);
 
     RegistrationBO checkInByQrCode(String userId, String token);
+
+    void markAbsentRegistrations(String lectureId);
 }

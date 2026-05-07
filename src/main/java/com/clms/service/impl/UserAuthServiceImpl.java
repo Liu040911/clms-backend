@@ -551,23 +551,34 @@ public class UserAuthServiceImpl implements IUserAuthService {
                .or()
                .eq(UserTable::getEmail, credential);
         UserTable user = userTableService.getOne(wrapper);
-        
+
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
+        }
+
+        // 4.1 若当前已登录，校验凭证是否属于当前用户
+        if (StpUtil.isLogin()) {
+            String loginUserId = (String) StpUtil.getTokenInfo().getLoginId();
+            if (!user.getId().equals(loginUserId)) {
+                throw new BusinessException(400, "该手机号/邮箱不属于当前用户");
+            }
         }
 
         // 5. 删除已使用的验证码
         stringRedisTemplate.delete(codeKey);
 
-        // 6. 生成步骤令牌（10分钟有效期）
+        // 6. 判断凭证类型
+        String credentialType = isValidPhone(credential) ? "phone" : "email";
+
+        // 7. 生成步骤令牌（10分钟有效期），存储 userId:type
         String stepToken = IdUtil.fastSimpleUUID();
         String stepTokenKey = RedisConstants.STEP_TOKEN + stepToken;
-        
-        // 将用户ID存储在stepToken中，用于后续重置密码
+
+        String stepTokenValue = user.getId() + ":" + credentialType;
         stringRedisTemplate.opsForValue().set(
-            stepTokenKey, 
-            user.getId(), 
-            RedisConstants.STEP_TOKEN_TTL, 
+            stepTokenKey,
+            stepTokenValue,
+            RedisConstants.STEP_TOKEN_TTL,
             TimeUnit.MINUTES
         );
 
@@ -586,13 +597,15 @@ public class UserAuthServiceImpl implements IUserAuthService {
             throw new BusinessException(400, "密码长度必须在6-20位之间");
         }
 
-        // 3. 从 Redis 获取步骤令牌对应的用户ID
+        // 3. 从 Redis 获取步骤令牌（格式: userId:type）
         String stepTokenKey = RedisConstants.STEP_TOKEN + stepToken;
-        String userId = stringRedisTemplate.opsForValue().get(stepTokenKey);
-        
-        if (StrUtil.isBlank(userId)) {
+        String stepTokenValue = stringRedisTemplate.opsForValue().get(stepTokenKey);
+
+        if (StrUtil.isBlank(stepTokenValue)) {
             throw new BusinessException(400, "令牌已过期或无效");
         }
+
+        String userId = stepTokenValue.substring(0, stepTokenValue.lastIndexOf(":"));
 
         // 4. 获取用户信息
         UserTable user = userTableService.getById(userId);

@@ -26,6 +26,7 @@ import com.clms.entity.dto.LectureRegistrationDTO;
 import com.clms.entity.po.LectureTable;
 import com.clms.entity.po.RegistrationTable;
 import com.clms.entity.po.UserTable;
+import com.clms.enums.LectureStatusEnum;
 import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
 import com.clms.service.IUserLectureRegistrationService;
@@ -41,7 +42,9 @@ import cn.hutool.core.util.StrUtil;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.extra.qrcode.QrCodeUtil;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrationService {
 
@@ -112,8 +115,10 @@ public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrat
                 throw new BusinessException(404, "讲座不存在");
             }
 
-            if (!"published".equals(lecture.getStatus())) {
-                throw new BusinessException(400, "仅可报名已发布讲座");
+            String status = lecture.getStatus();
+            if (!LectureStatusEnum.PUBLISHED.getStatus().equals(status)
+                    && !LectureStatusEnum.REGISTERING.getStatus().equals(status)) {
+                throw new BusinessException(400, "仅可报名已发布或正在报名的讲座");
             }
 
             Timestamp now = new Timestamp(System.currentTimeMillis());
@@ -198,6 +203,10 @@ public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrat
             LectureTable lecture = lectureTableService.getById(lectureId);
             if (lecture == null) {
                 throw new BusinessException(404, "讲座不存在");
+            }
+
+            if (StrUtil.equals(lecture.getStatus(), LectureStatusEnum.FINISHED.getStatus())) {
+                throw new BusinessException(400, "讲座已结束，无法取消报名");
             }
 
             RegistrationTable registration = registrationTableService.lambdaQuery()
@@ -528,6 +537,24 @@ public class UserLectureRegistrationServiceImpl implements IUserLectureRegistrat
 
         if (!updated) {
             throw new BusinessException(400, "当前讲座名额已满");
+        }
+    }
+
+    @Override
+    public void markAbsentRegistrations(String lectureId) {
+        if (StrUtil.isBlank(lectureId)) {
+            log.warn("markAbsentRegistrations 参数为空，跳过");
+            return;
+        }
+
+        boolean updated = registrationTableService.lambdaUpdate()
+                .eq(RegistrationTable::getLectureId, lectureId)
+                .eq(RegistrationTable::getStatus, RegistrationStatusEnum.PENDING.getStatus())
+                .set(RegistrationTable::getStatus, RegistrationStatusEnum.NOT_SIGNED_IN.getStatus())
+                .update();
+
+        if (updated) {
+            log.info("批量标记未签到完成, lectureId={}", lectureId);
         }
     }
 

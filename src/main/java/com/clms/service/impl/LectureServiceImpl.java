@@ -49,6 +49,7 @@ import com.clms.exception.BusinessException;
 import com.clms.mapper.LectureTableMapper;
 import com.clms.service.IAiChatService;
 import com.clms.service.ILectureService;
+import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.data.IClassTableService;
 import com.clms.service.data.ILectureAuditTableService;
 import com.clms.service.data.ILectureClassTableService;
@@ -95,6 +96,9 @@ public class LectureServiceImpl implements ILectureService {
 
     @Resource
     private IRegistrationTableService registrationTableService;
+
+    @Resource
+    private IUserLectureRegistrationService userLectureRegistrationService;
 
     @Resource
     private IAiChatService aiChatService;
@@ -162,6 +166,11 @@ public class LectureServiceImpl implements ILectureService {
         boolean wasPublished = LectureStatusEnum.PUBLISHED.getStatus().equals(existed.getStatus());
         if (wasPublished && new Timestamp(System.currentTimeMillis()).compareTo(existed.getRegistrationStartsTime()) >= 0) {
             throw new BusinessException(400, "已通过讲座仅可在报名开始前重新编辑");
+        }
+
+        if (LectureStatusEnum.REGISTERING.getStatus().equals(existed.getStatus())
+                || LectureStatusEnum.ONGOING.getStatus().equals(existed.getStatus())) {
+            throw new BusinessException(400, "报名中或进行中的讲座不可编辑");
         }
 
         validateLectureTimes(lectureDTO.getRegistrationStartsTime(), lectureDTO.getRegistrationEndsTime(),
@@ -1076,6 +1085,47 @@ public class LectureServiceImpl implements ILectureService {
         if (registrationEndsTime.after(lectureStartTime)) {
             throw new BusinessException(400, "报名结束时间必须早于或等于讲座开始时间");
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void endLecture(String operatorUserId, String lectureId) {
+        LectureTable lecture = lectureTableService.getById(lectureId);
+        if (lecture == null) {
+            throw new BusinessException(404, "讲座不存在");
+        }
+
+        if (!StrUtil.equals(lecture.getStatus(), LectureStatusEnum.ONGOING.getStatus())) {
+            if (StrUtil.equals(lecture.getStatus(), LectureStatusEnum.FINISHED.getStatus())) {
+                throw new BusinessException(400, "讲座已结束，请勿重复操作");
+            }
+            throw new BusinessException(400, "仅可结束进行中的讲座");
+        }
+
+        boolean isAdmin = StpUtil.hasRole("admin");
+        if (!isAdmin && !StrUtil.equals(lecture.getTeacherId(), operatorUserId)) {
+            throw new BusinessException(403, "仅讲座所属教师或管理员可结束讲座");
+        }
+
+        lecture.setStatus(LectureStatusEnum.FINISHED.getStatus());
+        boolean updated = lectureTableService.updateById(lecture);
+        if (!updated) {
+            throw new BusinessException(500, "结束讲座失败");
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                CompletableFuture.runAsync(
+                        () -> userLectureRegistrationService.markAbsentRegistrations(lectureId),
+                        asyncPoolTaskExecutor
+                ).exceptionally(ex -> {
+                    log.error("异步标记未签到失败, lectureId={}, error={}",
+                            lectureId, ex.getMessage(), ex);
+                    return null;
+                });
+            }
+        });
     }
 
     private void saveLectureAuditRecord(LectureTable lectureTable, String action, String beforeStatus,

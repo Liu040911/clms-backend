@@ -15,8 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.clms.entity.bo.UserLectureAppointmentBO;
+import com.clms.entity.dto.LectureRegistrationDTO;
+import com.clms.entity.po.LectureTable;
 import com.clms.entity.po.RegistrationTable;
 import com.clms.entity.po.UserTable;
+import com.clms.enums.LectureStatusEnum;
 import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
 import com.clms.service.IUserLectureRegistrationService;
@@ -148,6 +151,48 @@ class UserLectureRegistrationServiceImplTest {
         assertEquals(404, ex.getCode());
     }
 
+    private com.clms.entity.po.LectureTable createTestLecture(String status) {
+        com.clms.entity.po.LectureTable lecture = new com.clms.entity.po.LectureTable();
+        lecture.setId("lec-" + CommonUtil.generateUuidV7().substring(0, 28));
+        lecture.setTitle("RegTest-" + System.nanoTime());
+        lecture.setStatus(status);
+        lecture.setTeacherId("tchr-" + CommonUtil.generateUuidV7().substring(0, 27));
+        lecture.setTeacherName("T");
+        java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+        lecture.setRegistrationStartsTime(new java.sql.Timestamp(now.getTime() - 60000));
+        lecture.setRegistrationEndsTime(new java.sql.Timestamp(now.getTime() + 3600000));
+        lecture.setLectureStartTime(new java.sql.Timestamp(now.getTime() + 7200000));
+        lecture.setLectureEndTime(new java.sql.Timestamp(now.getTime() + 10800000));
+        lecture.setRemaining(100);
+        lectureTableService.save(lecture);
+        testLectureId = lecture.getId();
+        return lecture;
+    }
+
+    @Test
+    @DisplayName("registerLecture: REGISTERING状态可报名")
+    void registerLecture_shouldAcceptWhenStatusIsRegistering() {
+        createTestLecture(LectureStatusEnum.REGISTERING.getStatus());
+
+        LectureRegistrationDTO dto = new LectureRegistrationDTO();
+        dto.setLectureId(testLectureId);
+
+        assertNotNull(registrationService.registerLecture(testUserId, dto));
+    }
+
+    @Test
+    @DisplayName("registerLecture: ONGOING状态拒绝报名")
+    void registerLecture_shouldRejectWhenStatusIsOngoing() {
+        createTestLecture(LectureStatusEnum.ONGOING.getStatus());
+
+        LectureRegistrationDTO dto = new LectureRegistrationDTO();
+        dto.setLectureId(testLectureId);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> registrationService.registerLecture(testUserId, dto));
+        assertEquals(400, ex.getCode());
+    }
+
     @Test
     @DisplayName("checkInByQrCode: 空token应抛400")
     void checkInByQrCode_shouldThrowWhenTokenBlank() {
@@ -162,5 +207,72 @@ class UserLectureRegistrationServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> registrationService.checkInByQrCode(testUserId, "invalid-expired-token-12345"));
         assertEquals(400, ex.getCode());
+    }
+
+    private RegistrationTable createRegistration(LectureTable lecture, String userId, String status) {
+        RegistrationTable reg = new RegistrationTable();
+        reg.setId(CommonUtil.generateUuidV7());
+        reg.setUserId(userId);
+        reg.setLectureId(lecture.getId());
+        reg.setStatus(status);
+        reg.setRegistrationTime(new java.sql.Timestamp(System.currentTimeMillis()));
+        registrationTableService.save(reg);
+        return reg;
+    }
+
+    @Test
+    @DisplayName("markAbsentRegistrations: 将pending标记为not_signed_in")
+    void markAbsentRegistrations_shouldMarkPendingAsNotSignedIn() {
+        LectureTable lecture = createTestLecture(LectureStatusEnum.FINISHED.getStatus());
+        RegistrationTable reg = createRegistration(lecture, testUserId, RegistrationStatusEnum.PENDING.getStatus());
+
+        registrationService.markAbsentRegistrations(lecture.getId());
+
+        RegistrationTable updated = registrationTableService.getById(reg.getId());
+        assertEquals(RegistrationStatusEnum.NOT_SIGNED_IN.getStatus(), updated.getStatus());
+    }
+
+    @Test
+    @DisplayName("markAbsentRegistrations: 不误伤checked_in")
+    void markAbsentRegistrations_shouldNotTouchCheckedIn() {
+        LectureTable lecture = createTestLecture(LectureStatusEnum.FINISHED.getStatus());
+        RegistrationTable reg = createRegistration(lecture, testUserId, RegistrationStatusEnum.CHECKED_IN.getStatus());
+
+        registrationService.markAbsentRegistrations(lecture.getId());
+
+        RegistrationTable updated = registrationTableService.getById(reg.getId());
+        assertEquals(RegistrationStatusEnum.CHECKED_IN.getStatus(), updated.getStatus());
+    }
+
+    @Test
+    @DisplayName("markAbsentRegistrations: 不误伤cancelled")
+    void markAbsentRegistrations_shouldNotTouchCancelled() {
+        LectureTable lecture = createTestLecture(LectureStatusEnum.FINISHED.getStatus());
+        RegistrationTable reg = createRegistration(lecture, testUserId, RegistrationStatusEnum.CANCELLED.getStatus());
+
+        registrationService.markAbsentRegistrations(lecture.getId());
+
+        RegistrationTable updated = registrationTableService.getById(reg.getId());
+        assertEquals(RegistrationStatusEnum.CANCELLED.getStatus(), updated.getStatus());
+    }
+
+    @Test
+    @DisplayName("markAbsentRegistrations: 幂等性验证")
+    void markAbsentRegistrations_shouldBeIdempotent() {
+        LectureTable lecture = createTestLecture(LectureStatusEnum.FINISHED.getStatus());
+        RegistrationTable reg = createRegistration(lecture, testUserId, RegistrationStatusEnum.PENDING.getStatus());
+
+        registrationService.markAbsentRegistrations(lecture.getId());
+        registrationService.markAbsentRegistrations(lecture.getId());
+
+        RegistrationTable updated = registrationTableService.getById(reg.getId());
+        assertEquals(RegistrationStatusEnum.NOT_SIGNED_IN.getStatus(), updated.getStatus());
+    }
+
+    @Test
+    @DisplayName("markAbsentRegistrations: 空lectureId安全跳过")
+    void markAbsentRegistrations_shouldSkipBlankLectureId() {
+        registrationService.markAbsentRegistrations("");
+        registrationService.markAbsentRegistrations(null);
     }
 }

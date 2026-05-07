@@ -7,9 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import cn.dev33.satoken.stp.StpUtil;
@@ -17,6 +16,9 @@ import cn.dev33.satoken.temp.SaTempUtil;
 import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.json.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.clms.config.RabbitMQConfig;
+import com.clms.listener.EmailListener;
+import com.clms.listener.SMSListener;
 import com.clms.entity.bo.AdminLoginBO;
 import com.clms.entity.bo.RefreshTokenBO;
 import com.clms.entity.bo.UserLoginBO;
@@ -41,6 +43,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -100,6 +103,15 @@ public class UserAuthServiceImplTest {
     @MockitoBean
     private ISmsService smsService;
 
+    @MockitoBean
+    private RabbitTemplate rabbitTemplate;
+
+    @MockitoBean
+    private SMSListener smsListener;
+
+    @MockitoBean
+    private EmailListener emailListener;
+
     @BeforeEach
     void setUp() {
         StpUtil.logout();
@@ -116,8 +128,8 @@ public class UserAuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("获取手机验证码: 内部Redis和RabbitMQ走真实链路, 外部短信服务走Mock")
-    void getPhoneCode_shouldUseRealInternalFlowAndMockExternalSms() throws Exception {
+    @DisplayName("获取手机验证码: 验证Redis存储, RabbitTemplate发送Mock验证")
+    void getPhoneCode_shouldStoreCodeAndSendToMq() {
         String phone = PHONE_CODE_TEST_PHONE;
         String codeKey = RedisConstants.AUTH_CODE + phone;
         String limitKey = RedisConstants.SEND_CODE_LIMIT + phone;
@@ -133,8 +145,8 @@ public class UserAuthServiceImplTest {
         assertTrue(code.matches("^\\d{4}$"), "验证码应为4位数字");
         assertTrue("1".equals(sendLimit), "发送频率限制标记应写入Redis");
 
-        // 验证 RabbitMQ 消费后会调用短信服务（该服务已被 Mock）
-        verify(smsService, timeout(5000)).sendSms(eq(phone), anyString());
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.SMS_EXCHANGE), eq(RabbitMQConfig.SMS_ROUTING_KEY), any(Object.class));
     }
 
     @Test
@@ -149,8 +161,8 @@ public class UserAuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("获取邮箱验证码: 内部Redis和RabbitMQ走真实链路")
-    void getEmailCode_shouldUseRealInternalFlow() {
+    @DisplayName("获取邮箱验证码: 验证Redis存储, RabbitTemplate发送Mock验证")
+    void getEmailCode_shouldStoreCodeAndSendToMq() {
         String email = EMAIL_CODE_TEST_EMAIL;
         String codeKey = RedisConstants.AUTH_CODE + email;
         String limitKey = RedisConstants.SEND_CODE_LIMIT + email;
@@ -165,6 +177,9 @@ public class UserAuthServiceImplTest {
         assertFalse(code == null || code.isBlank(), "验证码应写入Redis");
         assertTrue(code.matches("^\\d{4}$"), "验证码应为4位数字");
         assertTrue("1".equals(sendLimit), "发送频率限制标记应写入Redis");
+
+        verify(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.EMAIL_EXCHANGE), eq(RabbitMQConfig.EMAIL_ROUTING_KEY), any(Object.class));
     }
 
     @Test
@@ -332,7 +347,7 @@ public class UserAuthServiceImplTest {
         assertNull(stringRedisTemplate.opsForValue().get(codeKey));
 
         String stepTokenKey = RedisConstants.STEP_TOKEN + stepToken;
-        assertEquals(user.getId(), stringRedisTemplate.opsForValue().get(stepTokenKey));
+        assertEquals(user.getId() + ":phone", stringRedisTemplate.opsForValue().get(stepTokenKey));
     }
 
     @Test
@@ -348,7 +363,7 @@ public class UserAuthServiceImplTest {
 
         String stepToken = "step-" + randomId();
         String stepTokenKey = RedisConstants.STEP_TOKEN + stepToken;
-        stringRedisTemplate.opsForValue().set(stepTokenKey, user.getId(), 10, TimeUnit.MINUTES);
+        stringRedisTemplate.opsForValue().set(stepTokenKey, user.getId() + ":phone", 10, TimeUnit.MINUTES);
 
         String newPassword = "NewPass@456";
         userAuthService.resetPassword(stepToken, newPassword);
