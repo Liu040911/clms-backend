@@ -42,4 +42,6 @@ public interface ILectureService {
         String tagId);
 
     List<LectureAnalyticsTagTopBO> getLectureAnalyticsTagTop(String startTime, String endTime, Integer topN, String metric);
+
+    void endLecture(String operatorUserId, String lectureId);
 }
