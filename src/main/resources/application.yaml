@@ -198,6 +198,10 @@ langchain4j:
         # DashScope 文本推理端点（可通过环境变量覆盖为 intl/us/coding 专属地址）
         base-url: ${ALIYUN_QWEN_BASE_URL:https://dashscope.aliyuncs.com/api/v1}
 
+# 讲座状态定时检查间隔（毫秒），默认30秒
+lecture:
+  status-check-interval-ms: 30000
+
 # 微信小程序消息推送配置
 wechat:
   push:
