@@ -47,7 +47,6 @@ import com.clms.enums.LectureStatusEnum;
 import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
 import com.clms.mapper.LectureTableMapper;
-import com.clms.service.IAiChatService;
 import com.clms.service.ILectureService;
 import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.data.IClassTableService;
@@ -101,13 +100,13 @@ public class LectureServiceImpl implements ILectureService {
     private IUserLectureRegistrationService userLectureRegistrationService;
 
     @Resource
-    private IAiChatService aiChatService;
-
-    @Resource
     private LectureTableMapper lectureTableMapper;
 
     @Resource(name = "asyncPoolTaskExecutor")
     private ThreadPoolTaskExecutor asyncPoolTaskExecutor;
+
+    @Resource
+    private dev.langchain4j.model.chat.ChatModel chatModel;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -868,9 +867,13 @@ public class LectureServiceImpl implements ILectureService {
             + "4. 禁止输出解释、标点、代码块、换行或其他任何内容。\n"
             + "示例：<label>科研分享</label>";
 
-        String aiResult;
+        String aiResult = "";
         try {
-            aiResult = aiChatService.classifyLectureTag(userPrompt);
+            var response = chatModel.chat(List.of(
+                dev.langchain4j.data.message.SystemMessage.from("你是一个专业的学术讲座分类助手。请严格按照用户指定的格式输出。"),
+                dev.langchain4j.data.message.UserMessage.from(userPrompt)
+            ));
+            aiResult = response.aiMessage().text();
         } catch (Exception e) {
             log.error("AI自动识别讲座标签失败, lectureId={}, error={}", lectureTable.getId(), e.getMessage(), e);
             throw new BusinessException(500, "AI自动识别讲座标签失败");

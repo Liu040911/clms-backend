@@ -82,6 +82,3 @@ logging:
   level:
     com.clms: DEBUG
     org.springframework: INFO
-
-ai:
-  enabled: false
