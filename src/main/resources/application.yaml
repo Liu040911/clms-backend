@@ -189,14 +189,13 @@ qiniu:
     secret-key: ${QINIU_SECRET_KEY:}
 
 langchain4j:
-  community:
-    dashscope:
-      chat-model:
-        api-key: ${ALIYUN_QWEN_API_KEY:}
-        # 文本对话请使用文本模型，避免模型-端点不匹配触发 url error
-        model-name: qwen-plus
-        # DashScope 文本推理端点（可通过环境变量覆盖为 intl/us/coding 专属地址）
-        base-url: ${ALIYUN_QWEN_BASE_URL:https://dashscope.aliyuncs.com/api/v1}
+  open-ai:
+    chat-model:
+      api-key: ${ALIYUN_QWEN_API_KEY:}
+      model-name: qwen-plus
+      base-url: ${ALIYUN_QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      log-requests: true
+      log-responses: true
 
 # 讲座状态定时检查间隔（毫秒），默认30秒
 lecture:

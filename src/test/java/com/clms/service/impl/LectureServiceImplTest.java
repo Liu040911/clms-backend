@@ -25,7 +25,6 @@ import com.clms.entity.po.TagTable;
 import com.clms.entity.po.UserTable;
 import com.clms.enums.RegistrationStatusEnum;
 import com.clms.exception.BusinessException;
-import com.clms.service.IAiChatService;
 import com.clms.service.ILectureService;
 import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.data.IClassTableService;
@@ -68,9 +67,6 @@ class LectureServiceImplTest {
 
     @Resource
     private IUserLectureRegistrationService userLectureRegistrationService;
-
-    @MockitoBean
-    private IAiChatService aiChatService;
 
     private String testLectureId;
     private String testClassId;
