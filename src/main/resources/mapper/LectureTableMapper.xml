@@ -22,7 +22,7 @@
                AND lt.tag_id = #{tagId}
         </if>
         WHERE l.deleted = 0
-          AND l.status = 'published'
+          AND l.status in ('published', 'registering')
           AND l.lecture_start_time &gt;= NOW()
         GROUP BY l.id, l.title, l.cover_image_url
         ORDER BY hotValue DESC, l.create_time DESC
