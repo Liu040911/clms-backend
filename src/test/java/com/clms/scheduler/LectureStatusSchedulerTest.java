@@ -72,7 +72,7 @@ class LectureStatusSchedulerTest {
     }
 
     private LectureTable createLecture(String status, Timestamp registrationStartsTime,
-            Timestamp lectureStartTime, Timestamp lectureEndTime) {
+            Timestamp registrationEndsTime, Timestamp lectureStartTime, Timestamp lectureEndTime) {
         LectureTable lecture = new LectureTable();
         lecture.setId(CommonUtil.generateUuidV7());
         lecture.setTitle("scheduler-test-" + System.nanoTime());
@@ -85,7 +85,8 @@ class LectureStatusSchedulerTest {
 
         Timestamp now = new Timestamp(System.currentTimeMillis());
         lecture.setRegistrationStartsTime(registrationStartsTime != null ? registrationStartsTime : now);
-        lecture.setRegistrationEndsTime(new Timestamp(System.currentTimeMillis() + 7200000));
+        lecture.setRegistrationEndsTime(registrationEndsTime != null ? registrationEndsTime
+                : new Timestamp(System.currentTimeMillis() + 7200000));
         lecture.setLectureStartTime(lectureStartTime != null ? lectureStartTime
                 : new Timestamp(System.currentTimeMillis() + 3600000));
         lecture.setLectureEndTime(
@@ -100,7 +101,7 @@ class LectureStatusSchedulerTest {
     @DisplayName("PUBLISHED 且 registrationStartsTime 已到 → REGISTERING")
     void shouldTransitionPublishedToRegisteringWhenTimeReached() {
         Timestamp past = new Timestamp(System.currentTimeMillis() - 60000);
-        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null);
+        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null, null);
 
         scheduler.checkAndUpdateLectureStatuses();
 
@@ -112,7 +113,7 @@ class LectureStatusSchedulerTest {
     @DisplayName("PUBLISHED 且 registrationStartsTime 未到 → 保持 PUBLISHED")
     void shouldNotTransitionPublishedWhenTimeNotReached() {
         Timestamp future = new Timestamp(System.currentTimeMillis() + 3600000);
-        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), future, null, null);
+        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), future, null, null, null);
 
         scheduler.checkAndUpdateLectureStatuses();
 
@@ -121,25 +122,25 @@ class LectureStatusSchedulerTest {
     }
 
     @Test
-    @DisplayName("REGISTERING 且 lectureStartTime 已到 → ONGOING")
-    void shouldTransitionRegisteringToOngoingWhenTimeReached() {
-        Timestamp past = new Timestamp(System.currentTimeMillis() - 60000);
+    @DisplayName("REGISTERING 且 registrationEndsTime 已到 → READY")
+    void shouldTransitionRegisteringToReadyWhenRegistrationEnds() {
+        Timestamp pastRegStart = new Timestamp(System.currentTimeMillis() - 120000);
+        Timestamp pastRegEnd = new Timestamp(System.currentTimeMillis() - 60000);
         createLecture(LectureStatusEnum.REGISTERING.getStatus(),
-                new Timestamp(System.currentTimeMillis() - 120000), past, null);
+                pastRegStart, pastRegEnd, null, null);
 
         scheduler.checkAndUpdateLectureStatuses();
 
         LectureTable updated = lectureTableService.getById(testLectureId);
-        assertEquals(LectureStatusEnum.ONGOING.getStatus(), updated.getStatus());
+        assertEquals(LectureStatusEnum.READY.getStatus(), updated.getStatus());
     }
 
     @Test
-    @DisplayName("REGISTERING 且 lectureStartTime 未到 → 保持 REGISTERING")
-    void shouldNotTransitionRegisteringWhenTimeNotReached() {
-        Timestamp future = new Timestamp(System.currentTimeMillis() + 3600000);
+    @DisplayName("REGISTERING 且 registrationEndsTime 未到 → 保持 REGISTERING")
+    void shouldNotTransitionRegisteringWhenRegistrationEndsNotReached() {
+        Timestamp futureRegEnd = new Timestamp(System.currentTimeMillis() + 3600000);
         createLecture(LectureStatusEnum.REGISTERING.getStatus(),
-                new Timestamp(System.currentTimeMillis() - 120000), future,
-                new Timestamp(System.currentTimeMillis() + 7200000));
+                new Timestamp(System.currentTimeMillis() - 120000), futureRegEnd, null, null);
 
         scheduler.checkAndUpdateLectureStatuses();
 
@@ -148,12 +149,43 @@ class LectureStatusSchedulerTest {
     }
 
     @Test
+    @DisplayName("READY 且 lectureStartTime 已到 → ONGOING")
+    void shouldTransitionReadyToOngoingWhenTimeReached() {
+        Timestamp pastStart = new Timestamp(System.currentTimeMillis() - 60000);
+        createLecture(LectureStatusEnum.READY.getStatus(),
+                new Timestamp(System.currentTimeMillis() - 180000),
+                new Timestamp(System.currentTimeMillis() - 120000),
+                pastStart, null);
+
+        scheduler.checkAndUpdateLectureStatuses();
+
+        LectureTable updated = lectureTableService.getById(testLectureId);
+        assertEquals(LectureStatusEnum.ONGOING.getStatus(), updated.getStatus());
+    }
+
+    @Test
+    @DisplayName("READY 且 lectureStartTime 未到 → 保持 READY")
+    void shouldNotTransitionReadyWhenLectureStartNotReached() {
+        Timestamp futureStart = new Timestamp(System.currentTimeMillis() + 3600000);
+        createLecture(LectureStatusEnum.READY.getStatus(),
+                new Timestamp(System.currentTimeMillis() - 180000),
+                new Timestamp(System.currentTimeMillis() - 120000),
+                futureStart,
+                new Timestamp(System.currentTimeMillis() + 7200000));
+
+        scheduler.checkAndUpdateLectureStatuses();
+
+        LectureTable updated = lectureTableService.getById(testLectureId);
+        assertEquals(LectureStatusEnum.READY.getStatus(), updated.getStatus());
+    }
+
+    @Test
     @DisplayName("ONGOING 且 lectureEndTime 已到 → FINISHED")
     void shouldTransitionOngoingToFinishedWhenTimeReached() {
         Timestamp pastStart = new Timestamp(System.currentTimeMillis() - 120000);
         Timestamp pastEnd = new Timestamp(System.currentTimeMillis() - 60000);
         createLecture(LectureStatusEnum.ONGOING.getStatus(),
-                new Timestamp(System.currentTimeMillis() - 180000), pastStart, pastEnd);
+                new Timestamp(System.currentTimeMillis() - 180000), null, pastStart, pastEnd);
 
         scheduler.checkAndUpdateLectureStatuses();
 
@@ -165,7 +197,7 @@ class LectureStatusSchedulerTest {
     @DisplayName("幂等性验证：连续两次调用无重复变更")
     void shouldBeIdempotent() {
         Timestamp past = new Timestamp(System.currentTimeMillis() - 60000);
-        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null);
+        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null, null);
 
         scheduler.checkAndUpdateLectureStatuses();
         scheduler.checkAndUpdateLectureStatuses();
@@ -180,10 +212,10 @@ class LectureStatusSchedulerTest {
         Timestamp past = new Timestamp(System.currentTimeMillis() - 60000);
         Timestamp future = new Timestamp(System.currentTimeMillis() + 3600000);
 
-        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null);
+        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), past, null, null, null);
         String publishedId = testLectureId;
 
-        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), future, null, null);
+        createLecture(LectureStatusEnum.PUBLISHED.getStatus(), future, null, null, null);
         String futurePublishedId = testLectureId;
 
         scheduler.checkAndUpdateLectureStatuses();
@@ -192,6 +224,23 @@ class LectureStatusSchedulerTest {
                 lectureTableService.getById(publishedId).getStatus());
         assertEquals(LectureStatusEnum.PUBLISHED.getStatus(),
                 lectureTableService.getById(futurePublishedId).getStatus());
+    }
+
+    @Test
+    @DisplayName("完整生命周期：REGISTERING → READY → ONGOING")
+    void shouldTransitionFullLifecycle() {
+        Timestamp pastRegStart = new Timestamp(System.currentTimeMillis() - 300000);
+        Timestamp pastRegEnd = new Timestamp(System.currentTimeMillis() - 180000);
+        Timestamp pastLectureStart = new Timestamp(System.currentTimeMillis() - 60000);
+        Timestamp futureLectureEnd = new Timestamp(System.currentTimeMillis() + 3600000);
+
+        createLecture(LectureStatusEnum.REGISTERING.getStatus(),
+                pastRegStart, pastRegEnd, pastLectureStart, futureLectureEnd);
+
+        scheduler.checkAndUpdateLectureStatuses();
+
+        LectureTable updated = lectureTableService.getById(testLectureId);
+        assertEquals(LectureStatusEnum.ONGOING.getStatus(), updated.getStatus());
     }
 
     private UserTable createTestUser(String userId) {
@@ -223,7 +272,7 @@ class LectureStatusSchedulerTest {
         Timestamp pastStart = new Timestamp(System.currentTimeMillis() - 120000);
         Timestamp pastEnd = new Timestamp(System.currentTimeMillis() - 60000);
         LectureTable lecture = createLecture(LectureStatusEnum.ONGOING.getStatus(),
-                new Timestamp(System.currentTimeMillis() - 180000), pastStart, pastEnd);
+                new Timestamp(System.currentTimeMillis() - 180000), null, pastStart, pastEnd);
 
         String userA = testUserAPrefix;
         String userB = testUserBPrefix;
@@ -257,7 +306,7 @@ class LectureStatusSchedulerTest {
         Timestamp pastStart = new Timestamp(System.currentTimeMillis() - 120000);
         Timestamp pastEnd = new Timestamp(System.currentTimeMillis() - 60000);
         LectureTable lecture = createLecture(LectureStatusEnum.ONGOING.getStatus(),
-                new Timestamp(System.currentTimeMillis() - 180000), pastStart, pastEnd);
+                new Timestamp(System.currentTimeMillis() - 180000), null, pastStart, pastEnd);
 
         String userId = testUserAPrefix;
         createTestUser(userId);

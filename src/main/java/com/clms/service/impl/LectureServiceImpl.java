@@ -168,8 +168,9 @@ public class LectureServiceImpl implements ILectureService {
         }
 
         if (LectureStatusEnum.REGISTERING.getStatus().equals(existed.getStatus())
+                || LectureStatusEnum.READY.getStatus().equals(existed.getStatus())
                 || LectureStatusEnum.ONGOING.getStatus().equals(existed.getStatus())) {
-            throw new BusinessException(400, "报名中或进行中的讲座不可编辑");
+            throw new BusinessException(400, "报名中、待开始或进行中的讲座不可编辑");
         }
 
         validateLectureTimes(lectureDTO.getRegistrationStartsTime(), lectureDTO.getRegistrationEndsTime(),

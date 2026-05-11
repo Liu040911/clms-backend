@@ -14,6 +14,7 @@ public enum LectureStatusEnum {
     REJECT("reject", "已驳回"),
     PUBLISHED("published", "已发布"),
     REGISTERING("registering", "报名中"),
+    READY("ready", "待开始"),
     ONGOING("ongoing", "进行中"),
     FINISHED("finished", "已结束"),
     CANCELLED("cancelled", "已取消");
@@ -22,6 +23,6 @@ public enum LectureStatusEnum {
     private final String description;
 
     public static List<String> occupiedStatuses() {
-        return List.of(DRAFT.status, PENDING.status, PUBLISHED.status, REGISTERING.status, ONGOING.status);
+        return List.of(DRAFT.status, PENDING.status, PUBLISHED.status, REGISTERING.status, READY.status, ONGOING.status);
     }
 }
