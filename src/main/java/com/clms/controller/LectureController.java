@@ -87,6 +87,7 @@ public class LectureController {
 
 	@Operation(summary = "获取讲座信息")
 	@GetMapping("/info")
+	@SaIgnore
 	public ResponseEntity<LectureBO> getLectureInfo(@RequestParam @NotBlank String lectureId) {
 		return ResponseEntity.ok(lectureService.getLectureInfo(lectureId));
 	}
