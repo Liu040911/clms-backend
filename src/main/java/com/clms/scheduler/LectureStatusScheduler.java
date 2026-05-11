@@ -39,12 +39,13 @@ public class LectureStatusScheduler {
         Timestamp now = new Timestamp(System.currentTimeMillis());
 
         int publishedToRegistering = transitionPublishedToRegistering(now);
-        int registeringToOngoing = transitionRegisteringToOngoing(now);
+        int registeringToReady = transitionRegisteringToReady(now);
+        int readyToOngoing = transitionReadyToOngoing(now);
         int ongoingToFinished = transitionOngoingToFinished(now);
 
-        if (publishedToRegistering > 0 || registeringToOngoing > 0 || ongoingToFinished > 0) {
-            log.info("讲座状态转换: PUBLISHED→REGISTERING={}, REGISTERING→ONGOING={}, ONGOING→FINISHED={}",
-                    publishedToRegistering, registeringToOngoing, ongoingToFinished);
+        if (publishedToRegistering > 0 || registeringToReady > 0 || readyToOngoing > 0 || ongoingToFinished > 0) {
+            log.info("讲座状态转换: PUBLISHED→REGISTERING={}, REGISTERING→READY={}, READY→ONGOING={}, ONGOING→FINISHED={}",
+                    publishedToRegistering, registeringToReady, readyToOngoing, ongoingToFinished);
         }
     }
 
@@ -56,10 +57,18 @@ public class LectureStatusScheduler {
         return lectureTableMapper.update(null, wrapper);
     }
 
-    private int transitionRegisteringToOngoing(Timestamp now) {
+    private int transitionRegisteringToReady(Timestamp now) {
+        LambdaUpdateWrapper<LectureTable> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.set(LectureTable::getStatus, LectureStatusEnum.READY.getStatus())
+               .eq(LectureTable::getStatus, LectureStatusEnum.REGISTERING.getStatus())
+               .le(LectureTable::getRegistrationEndsTime, now);
+        return lectureTableMapper.update(null, wrapper);
+    }
+
+    private int transitionReadyToOngoing(Timestamp now) {
         LambdaUpdateWrapper<LectureTable> wrapper = new LambdaUpdateWrapper<>();
         wrapper.set(LectureTable::getStatus, LectureStatusEnum.ONGOING.getStatus())
-               .eq(LectureTable::getStatus, LectureStatusEnum.REGISTERING.getStatus())
+               .eq(LectureTable::getStatus, LectureStatusEnum.READY.getStatus())
                .le(LectureTable::getLectureStartTime, now);
         return lectureTableMapper.update(null, wrapper);
     }
