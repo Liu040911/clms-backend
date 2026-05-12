@@ -251,6 +251,9 @@ public class LectureServiceImpl implements ILectureService {
         }
 
         String beforeStatus = existed.getStatus();
+        if (!"pending".equals(beforeStatus) && !"reject".equals(beforeStatus)) {
+            throw new BusinessException(400, "仅待审核或已驳回状态的讲座可审核通过");
+        }
 
         existed.setStatus(LectureStatusEnum.PUBLISHED.getStatus());
         existed.setReason("");
@@ -275,6 +278,9 @@ public class LectureServiceImpl implements ILectureService {
         }
 
         String beforeStatus = existed.getStatus();
+        if (!"pending".equals(beforeStatus)) {
+            throw new BusinessException(400, "仅待审核状态的讲座可驳回");
+        }
 
         existed.setStatus(LectureStatusEnum.REJECT.getStatus());
         existed.setReason(StrUtil.trim(reason));

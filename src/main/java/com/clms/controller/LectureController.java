@@ -25,6 +25,7 @@ import com.clms.service.IUserLectureRegistrationService;
 import com.clms.service.ILectureService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.annotation.SaIgnore;
 import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,6 +48,7 @@ public class LectureController {
 	private IUserLectureRegistrationService userLectureRegistrationService;
 
 	@Operation(summary = "创建讲座")
+	@SaCheckPermission("lecture:create")
 	@PostMapping("/create")
 	public ResponseEntity<Void> createLecture(@RequestBody @Valid LectureDTO lectureDTO) {
 		lectureService.createLecture(lectureDTO);
@@ -54,6 +56,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "修改讲座")
+	@SaCheckPermission("lecture:update")
 	@PostMapping("/update")
 	public ResponseEntity<Void> updateLecture(
 			@RequestParam @NotBlank String lectureId,
@@ -63,6 +66,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "删除讲座")
+	@SaCheckPermission("lecture:delete")
 	@PostMapping("/delete")
 	public ResponseEntity<Void> deleteLecture(@RequestParam @NotBlank String lectureId) {
 		lectureService.deleteLecture(lectureId);
@@ -70,6 +74,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "讲座通过")
+	@SaCheckPermission("lecture:approve")
 	@PostMapping("/approve")
 	public ResponseEntity<Void> approveLecture(@RequestParam @NotBlank String lectureId) {
 		lectureService.approveLecture(lectureId);
@@ -77,6 +82,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "讲座驳回")
+	@SaCheckPermission("lecture:reject")
 	@PostMapping("/reject")
 	public ResponseEntity<Void> rejectLecture(
 			@RequestParam @NotBlank String lectureId,
@@ -93,6 +99,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "获取讲座审核记录")
+	@SaCheckPermission("lecture:auditList")
 	@GetMapping("/audit/list")
 	public ResponseEntity<Page<LectureAuditBO>> getLectureAuditList(
 			@RequestParam @NotBlank String lectureId,
@@ -102,6 +109,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "获取讲座列表")
+	@SaCheckPermission("lecture:list")
 	@GetMapping("/list")
 	public ResponseEntity<Page<LectureBO>> getLectureList(
 			@RequestParam(required = false) String title,
@@ -134,6 +142,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "手动结束讲座（仅教师或管理员）")
+	@SaCheckPermission("lecture:end")
 	@PostMapping("/end")
 	public ResponseEntity<Void> endLecture(@RequestParam @NotBlank String lectureId) {
 		String userId = (String) StpUtil.getTokenInfo().getLoginId();
@@ -142,6 +151,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "教师端获取讲座签到二维码")
+	@SaCheckPermission("lecture:checkInQrCode")
 	@GetMapping("/check-in/qrcode")
 	public ResponseEntity<LectureCheckInQrCodeBO> getLectureCheckInQrCode(@RequestParam @NotBlank String lectureId) {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
@@ -149,6 +159,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "讲座分析概览")
+	@SaCheckPermission("lecture:analyticsOverview")
 	@GetMapping("/analytics/overview")
 	public ResponseEntity<LectureAnalyticsOverviewBO> getLectureAnalyticsOverview(
 			@RequestParam(required = false) String startTime,
@@ -160,6 +171,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "讲座分析趋势")
+	@SaCheckPermission("lecture:analyticsTrend")
 	@GetMapping("/analytics/trend")
 	public ResponseEntity<List<LectureAnalyticsTrendPointBO>> getLectureAnalyticsTrend(
 			@RequestParam(required = false) String startTime,
@@ -171,6 +183,7 @@ public class LectureController {
 	}
 
 	@Operation(summary = "讲座标签热度Top")
+	@SaCheckPermission("lecture:analyticsTagTop")
 	@GetMapping("/analytics/tag-top")
 	public ResponseEntity<List<LectureAnalyticsTagTopBO>> getLectureAnalyticsTagTop(
 			@RequestParam(required = false) String startTime,

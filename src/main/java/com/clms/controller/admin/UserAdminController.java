@@ -73,6 +73,7 @@ public class UserAdminController {
     }
 
     @Operation(summary = "编辑管理员信息")
+    @SaCheckPermission("admin:editAdminInfo")
     @PostMapping("/editAdminInfo")
     public ResponseEntity<Void> editAdminInfo(@Valid @RequestBody UserAdminEditDTO userAdminEditDTO) {
         userAdminService.editAdminInfo(userAdminEditDTO);

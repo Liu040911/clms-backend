@@ -18,6 +18,7 @@ import com.clms.entity.dto.ChatSendRequest;
 import com.clms.service.IChatService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,6 +37,7 @@ public class ChatController {
     private IChatService chatService;
 
     @Operation(summary = "发送消息")
+    @SaCheckPermission("chat:send")
     @PostMapping("/send")
     public ResponseEntity<ChatReplyResult> sendMessage(@RequestBody @Valid ChatSendRequest request) {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
@@ -44,6 +46,7 @@ public class ChatController {
     }
 
     @Operation(summary = "获取会话列表")
+    @SaCheckPermission("chat:sessions")
     @GetMapping("/sessions")
     public ResponseEntity<List<ChatSessionBO>> listSessions() {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
@@ -51,6 +54,7 @@ public class ChatController {
     }
 
     @Operation(summary = "获取会话消息")
+    @SaCheckPermission("chat:messages")
     @GetMapping("/sessions/messages")
     public ResponseEntity<List<ChatMessageBO>> getMessages(@RequestParam @NotBlank String sessionId) {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
@@ -58,6 +62,7 @@ public class ChatController {
     }
 
     @Operation(summary = "删除会话")
+    @SaCheckPermission("chat:deleteSession")
     @PostMapping("/sessions/delete")
     public ResponseEntity<Void> deleteSession(@RequestParam @NotBlank String sessionId) {
         String userId = (String) StpUtil.getTokenInfo().getLoginId();
