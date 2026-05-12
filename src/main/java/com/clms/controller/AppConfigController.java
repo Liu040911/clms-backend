@@ -9,6 +9,7 @@ import com.clms.entity.base.ResponseEntity;
 import com.clms.service.IAppConfigService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.json.JSONObject;
 import io.swagger.v3.oas.annotations.Operation;

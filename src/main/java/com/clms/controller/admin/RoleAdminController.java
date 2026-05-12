@@ -23,6 +23,8 @@ import com.clms.service.IRoleService;
 
 import cn.dev33.satoken.annotation.SaCheckDisable;
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -41,7 +43,7 @@ public class RoleAdminController {
     private IRoleService roleService;
 
     @Operation(summary = "创建角色")
-    // @SaCheckPermission("role:create")
+    @SaCheckPermission("role:create")
     @PostMapping("create")
     public ResponseEntity<Void> createRole(@RequestBody @Valid RoleDTO roleDTO) {
         roleService.createRole(roleDTO);
@@ -49,7 +51,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "修改角色")
-    // @SaCheckPermission("role:update")
+    @SaCheckPermission("role:update")
     @PostMapping("update")
     public ResponseEntity<Void> updateRole(
             @RequestParam @NotBlank String roleId,
@@ -59,7 +61,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "删除角色")
-    // @SaCheckPermission("role:delete")
+    @SaCheckPermission("role:delete")
     @PostMapping("delete")
     public ResponseEntity<Void> deleteRole(@RequestParam @NotBlank String roleId) {
         roleService.deleteRole(roleId);
@@ -67,14 +69,14 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "获取角色信息")
-    // @SaCheckPermission("role:info")
+    @SaCheckPermission("role:info")
     @GetMapping("info")
     public ResponseEntity<RoleBO> getRole(@RequestParam @NotBlank String roleId) {
         return ResponseEntity.ok(roleService.getRole(roleId));
     }
 
     @Operation(summary = "获取角色列表")
-    // @SaCheckPermission("role:list")
+    @SaCheckPermission("role:list")
     @GetMapping("list")
     public ResponseEntity<Page<RoleBO>> getRoleList(
             @RequestParam(required = false) String roleName,
@@ -86,7 +88,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "为角色绑定权限")
-    // @SaCheckPermission("role:bindPermission")
+    @SaCheckPermission("role:bindPermission")
     @PostMapping("bindPermission")
     public ResponseEntity<Void> bindPermissionToRole(
             @RequestParam @NotBlank String roleId,
@@ -96,7 +98,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "解除角色权限绑定")
-    // @SaCheckPermission("role:unbindPermission")
+    @SaCheckPermission("role:unbindPermission")
     @PostMapping("unbindPermission")
     public ResponseEntity<Void> unbindPermissionFromRole(
             @RequestParam @NotBlank String roleId,
@@ -106,14 +108,14 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "获取指定角色的权限字符串列表")
-    // @SaCheckPermission("role:permissionList")
+    @SaCheckPermission("role:permissionList")
     @GetMapping("permissionList")
     public ResponseEntity<List<PermissionBO>> getPermissionStringList(@RequestParam @NotBlank String roleId) {
         return ResponseEntity.ok(roleService.getPermissionList(roleId));
     }
 
     @Operation(summary = "获取指定角色的权限模块分组列表")
-    // @SaCheckPermission("role:permissionList")
+    @SaCheckPermission("role:permissionList")
     @GetMapping("permissionModuleList")
     public ResponseEntity<List<PermissionModuleBO>> getPermissionModuleList(
             @RequestParam @NotBlank String roleId) {
@@ -121,7 +123,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "获取指定角色的权限模块集合")
-    // @SaCheckPermission("role:permissionList")
+    @SaCheckPermission("role:permissionList")
     @GetMapping("permissionModules")
     public ResponseEntity<Set<String>> getPermissionModules(
             @RequestParam @NotBlank String roleId) {
@@ -129,7 +131,7 @@ public class RoleAdminController {
     }
 
     @Operation(summary = "获取全模块全权限点聚合列表")
-    // @SaCheckPermission("role:permissionList")
+    @SaCheckPermission("role:permissionList")
     @GetMapping("allPermissionModules")
     public ResponseEntity<List<PermissionModuleBO>> getAllPermissionModules() {
         return ResponseEntity.ok(roleService.getAllPermissionModules());
@@ -137,7 +139,7 @@ public class RoleAdminController {
 
 
     @Operation(summary = "批量更新角色权限")
-    // @SaCheckPermission(value = {"role:bindPermission", "role:unbindPermission"}, mode = SaMode.AND)
+    @SaCheckPermission(value = {"role:bindPermission", "role:unbindPermission"}, mode = SaMode.AND)
     @PostMapping("batchUpdatePermissions")
     @Transactional
     public ResponseEntity<String> batchUpdateRolePermissions(

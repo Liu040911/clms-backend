@@ -15,6 +15,7 @@ import com.clms.entity.dto.TagDTO;
 import com.clms.service.ITagService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -32,6 +33,7 @@ public class TagController {
 	private ITagService tagService;
 
 	@Operation(summary = "创建标签")
+	@SaCheckPermission("tag:create")
 	@PostMapping("/create")
 	public ResponseEntity<Void> createTag(@RequestBody @Valid TagDTO tagDTO) {
 		tagService.createTag(tagDTO);
@@ -39,6 +41,7 @@ public class TagController {
 	}
 
 	@Operation(summary = "修改标签")
+	@SaCheckPermission("tag:update")
 	@PostMapping("/update")
 	public ResponseEntity<Void> updateTag(
 			@RequestParam @NotBlank String tagId,
@@ -48,6 +51,7 @@ public class TagController {
 	}
 
 	@Operation(summary = "删除标签")
+	@SaCheckPermission("tag:delete")
 	@PostMapping("/delete")
 	public ResponseEntity<Void> deleteTag(@RequestParam @NotBlank String tagId) {
 		tagService.deleteTag(tagId);
@@ -55,12 +59,14 @@ public class TagController {
 	}
 
 	@Operation(summary = "获取标签详情")
+	@SaCheckPermission("tag:info")
 	@GetMapping("/info")
 	public ResponseEntity<TagBO> getTagInfo(@RequestParam @NotBlank String tagId) {
 		return ResponseEntity.ok(tagService.getTagInfo(tagId));
 	}
 
 	@Operation(summary = "获取标签列表")
+	@SaCheckPermission("tag:list")
 	@GetMapping("/list")
 	public ResponseEntity<Page<TagBO>> getTagList(
 			@RequestParam(required = false) String tagName,

@@ -17,6 +17,7 @@ import com.clms.entity.dto.ClassDTO;
 import com.clms.service.IClassService;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -34,6 +35,7 @@ public class ClassController {
 	private IClassService classService;
 
 	@Operation(summary = "创建教室")
+	@SaCheckPermission("class:create")
 	@PostMapping("/create")
 	public ResponseEntity<Void> createClass(@RequestBody @Valid ClassDTO classDTO) {
 		classService.createClass(classDTO);
@@ -41,6 +43,7 @@ public class ClassController {
 	}
 
 	@Operation(summary = "修改教室")
+	@SaCheckPermission("class:update")
 	@PostMapping("/update")
 	public ResponseEntity<Void> updateClass(
 			@RequestParam @NotBlank String classId,
@@ -50,6 +53,7 @@ public class ClassController {
 	}
 
 	@Operation(summary = "删除教室")
+	@SaCheckPermission("class:delete")
 	@PostMapping("/delete")
 	public ResponseEntity<Void> deleteClass(@RequestParam @NotBlank String classId) {
 		classService.deleteClass(classId);
@@ -57,12 +61,14 @@ public class ClassController {
 	}
 
 	@Operation(summary = "获取教室信息")
+	@SaCheckPermission("class:info")
 	@GetMapping("/info")
 	public ResponseEntity<ClassBO> getClassInfo(@RequestParam @NotBlank String classId) {
 		return ResponseEntity.ok(classService.getClassInfo(classId));
 	}
 
 	@Operation(summary = "获取教室列表")
+	@SaCheckPermission("class:list")
 	@GetMapping("/list")
 	public ResponseEntity<Page<ClassBO>> getClassList(
 			@RequestParam(required = false) String location,
@@ -75,6 +81,7 @@ public class ClassController {
 	}
 
 	@Operation(summary = "获取可用教室列表")
+	@SaCheckPermission("class:availableList")
 	@GetMapping("/available/list")
 	public ResponseEntity<List<ClassBO>> getAvailableClassList() {
 		return ResponseEntity.ok(classService.getAvailableClassList());
